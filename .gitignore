@@ -11,4 +11,5 @@ grids/
 notebooks/
 qgis/
 shapefiles/
-tests/
+debug_modules.py
+use_modules_v2.ipynb
