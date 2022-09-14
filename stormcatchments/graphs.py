@@ -42,6 +42,8 @@ class Graphs:
         storm_pts : gpd.GeoDataFrame
             All the stormwater infrastructure points features within the area of interest
         '''
+        print('Initializing graphs again...')
+
         assert 'OBJECTID' in storm_lines.columns, f'storm_lines must contain a column '\
             'named OBJECTID'
         self.lines = storm_lines
@@ -136,8 +138,9 @@ class Graphs:
             pt_iter = pt.itertuples(index=False, name='StormPoint')
             pt = next(pt_iter)
         else:
-            assert pt.__class__.__name__ == 'StormPoint', f'Expected pt to be a '\
-                f'gpd.GeoDataFrame or a StormPoint namedtuple, got a {pt.__class__.__name__}'
+            assert pt.__class__.__name__ == 'StormPoint', f'Expected pt to be a ' \
+                'gpd.GeoDataFrame or a StormPoint namedtuple, got a ' \
+                f'{pt.__class__.__name__}'
         
         lines = self.get_lines_at_point(pt)
         if len(lines) < 1:
@@ -145,6 +148,7 @@ class Graphs:
             return
 
         for line in lines.itertuples(index=False, name='StormLine'):
+            print('Starting new line...')
             line_oid = line.OBJECTID
             line_x, line_y = self.get_line_coords(line)
 
@@ -304,13 +308,13 @@ class Graphs:
                     # a problem?
 
                     # recursively call search on each of these new lines
-                    return self._traverse_network(
+                    self._traverse_network(
                         next_pt, line_oid, (line_x, line_y), True, traverse_upstream
                     )
     
             else:
                 # recursively call search
-                return self._traverse_network(
+                self._traverse_network(
                     next_pt, line_oid, (line_x, line_y), False, traverse_upstream
                 )
         
