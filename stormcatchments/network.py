@@ -16,7 +16,7 @@ STORM_PT_FLOWS = {
     9: 1, # Culvert outlet'
 }
 
-class Graphs:
+class Network:
     '''
     Parses through stormwater infrastructure point and line data to generate directional
     graphs represeting the connectivity of the infrastructure network.
@@ -42,7 +42,7 @@ class Graphs:
         storm_pts : gpd.GeoDataFrame
             All the stormwater infrastructure points features within the area of interest
         '''
-        print('Initializing graphs again...')
+        print('Initializing graphs...')
 
         assert 'OBJECTID' in storm_lines.columns, f'storm_lines must contain a column '\
             'named OBJECTID'
@@ -112,7 +112,7 @@ class Graphs:
 
     def add_upstream_pts(self, downstream_pt: gpd.GeoDataFrame) -> None:
         # line_oid, line_x, line_y = self._get_traverse_args(downstream_pt)
-        # self._traverse_network(downstream_pt, line_oid, (line_x, line_y), True, True)
+        # self._traverse(downstream_pt, line_oid, (line_x, line_y), True, True)
         # self._init_traverse(downsteam_pt)
         self._init_traverse(downstream_pt, True)
         # Reset currentG
@@ -122,7 +122,7 @@ class Graphs:
 
     def find_downstream_pt(self, pt: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         # line_oid, line_x, line_y = self._get_traverse_args(pt)
-        # return self._traverse_network(pt, line_oid, (line_x, line_y), True, False)
+        # return self._traverse(pt, line_oid, (line_x, line_y), True, False)
         downsteam_pt = self._init_traverse(pt, False)
         return downsteam_pt
 
@@ -157,7 +157,7 @@ class Graphs:
             # a problem?
 
             # recursively call search on each of these new lines
-            return_pt = self._traverse_network(
+            return_pt = self._traverse(
                 pt, line_oid, (line_x, line_y), True, traverse_upstream
             )
             print('Got a return point:')
@@ -166,7 +166,7 @@ class Graphs:
         return return_pt
 
 
-    def _traverse_network(
+    def _traverse(
         self,
         current_pt,
         line_oid: int,
@@ -206,7 +206,7 @@ class Graphs:
 
         '''
         # TODO: Remove extra comments/prints
-        print('\nStarting _traverse_network()')
+        print('\nStarting _traverse()')
         # print(f'type of current_pt: {type(current_pt)}')
 
         if traverse_upstream and self.currentG is None:
@@ -297,7 +297,7 @@ class Graphs:
                 #     line_oid = line[0]
                 #     line_x, line_y = self.get_line_coords(line)
                 #     # recursively call search on each of these new lines
-                #     self._traverse_network(next_pt, line_oid, (line_x, line_y), True, traverse_upstream)
+                #     self._traverse(next_pt, line_oid, (line_x, line_y), True, traverse_upstream)
 
                 for line in lines.itertuples(index=False, name='StormLine'):
                     line_oid = line.OBJECTID
@@ -308,14 +308,31 @@ class Graphs:
                     # a problem?
 
                     # recursively call search on each of these new lines
-                    self._traverse_network(
+                    self._traverse(
                         next_pt, line_oid, (line_x, line_y), True, traverse_upstream
                     )
     
             else:
                 # recursively call search
-                self._traverse_network(
+                self._traverse(
                     next_pt, line_oid, (line_x, line_y), False, traverse_upstream
                 )
         
+    def generate_infra_graphs(self, catchment: gpd.GeoSeries) -> None:
+        '''
+        Generate graph representations of all infrastructure networks that are within a
+        catchment.
+        '''
+        # ensure CRS match
+        if catchment.crs != self.storm_pts.crs:
+            catchment = catchment.to_crs(crs=self.storm_pts.crs)
+
+        pts = gpd.clip(self.storm_pts, catchment)
         
+        for pt in pts.itertuples(name='StormPoint'):
+            downstream_pt = self.gen.find_downstream_pt(pt)
+            print('Found downstream point...')
+            print(downstream_pt)
+
+        self.gen.add_upstream_pts(downstream_pt)
+        # print(pt)

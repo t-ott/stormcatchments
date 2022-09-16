@@ -8,10 +8,10 @@ from pysheds.grid import Grid
 from shapely.geometry import mapping, Polygon
 
 # Force reload, for delevopment
-import importlib
-import graphs
-importlib.reload(graphs)
-from graphs import Graphs
+# import importlib
+from . import network
+# importlib.reload(graphs)
+# from graphs import Graphs
 
 STORM_PT_FLOWS = {
     2: 0, # Catchbasin
@@ -26,10 +26,10 @@ class Delineate:
       self,
       storm_lines: gpd.GeoDataFrame,
       storm_pts: gpd.GeoDataFrame,
-      grid: pysheds.sgrid.sGrid,
-      fdir: pysheds.sgrid.sGrid,
-      acc: pysheds.sgrid.sGrid,
-      grid_epsg: int,
+      # grid: pysheds.sgrid.sGrid,
+      # fdir: pysheds.sgrid.sGrid,
+      # acc: pysheds.sgrid.sGrid,
+      # grid_epsg: int,
     ):
     '''
     storm_lines: gpd.GeoDataFrame
@@ -64,31 +64,12 @@ class Delineate:
     # assert 'flow' in storm_pts.columns, 'storm_pts must contain a column named "flow"' \
     #   ' with integer values representing the direction of flow at a given point'
     # self.storm_pts = storm_pts
-    self.gen = Graphs(storm_lines, storm_pts)
+    self.gen = network.Network(storm_lines, storm_pts)
 
-    self.grid = grid
-    self.fdir = fdir
-    self.acc = acc
-    self.grid_epsg = grid_epsg
-
-  def generate_infra_graphs(self, catchment: gpd.GeoSeries) -> None:
-    '''
-    Generate graph representations of all infrastructure networks that are within a
-    catchment.
-    '''
-    # ensure CRS match
-    if catchment.crs != self.storm_pts.crs:
-      catchment = catchment.to_crs(crs=self.storm_pts.crs)
-
-    pts = gpd.clip(self.storm_pts, catchment)
-    
-    for pt in pts.itertuples(name='StormPoint'):
-      downstream_pt = self.gen.find_downstream_pt(pt)
-      print('Found downstream point...')
-      print(downstream_pt)
-
-      self.gen.add_upstream_pts(downstream_pt)
-     # print(pt)
+    # self.grid = grid
+    # self.fdir = fdir
+    # self.acc = acc
+    # self.grid_epsg = grid_epsg
 
   def get_catchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoSeries:
     """
