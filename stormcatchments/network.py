@@ -12,8 +12,8 @@ STORM_PT_FLOWS = {
     2: 0, # Catchbasin
     3: 2, # Stormwater manhole
     5: 1, # Outfall
-    8: 0, # Culvert inlet',
-    9: 1, # Culvert outlet'
+    8: 0, # Culvert inlet
+    9: 1, # Culvert outlet
 }
 
 class Network:
@@ -42,7 +42,7 @@ class Network:
         storm_pts : gpd.GeoDataFrame
             All the stormwater infrastructure points features within the area of interest
         '''
-        print('Initializing graphs...')
+        print('Initializing Network...')
 
         assert 'OBJECTID' in storm_lines.columns, f'storm_lines must contain a column '\
             'named OBJECTID'
@@ -63,6 +63,7 @@ class Network:
         
         self.Gs = []
         self.currentG = None
+        self.pt_oids = []
     
     def get_lines_at_point(self, pt):
         '''
@@ -93,6 +94,8 @@ class Network:
         '''pt: StormPoint'''
         # oid will be the "name"/index of the node in the graph
         oid = pt.OBJECTID
+        self.pt_oids.append(oid) # add to running list of all OIDs
+
         # keep all other columns from row that aren't OBJECTID in node's attributes
         pt_dict = pt._asdict()
         del pt_dict['OBJECTID']
@@ -120,7 +123,7 @@ class Network:
         self.currentG = None
         return
 
-    def find_downstream_pt(self, pt: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    def find_downstream_pt(self, pt: gpd.GeoDataFrame) -> Optional[gpd.GeoDataFrame]:
         # line_oid, line_x, line_y = self._get_traverse_args(pt)
         # return self._traverse(pt, line_oid, (line_x, line_y), True, False)
         downsteam_pt = self._init_traverse(pt, False)
@@ -130,6 +133,9 @@ class Network:
         '''
         pt: gpd.GeoDataFrame | StormPoint namedtuple
         '''
+        # TODO: Potentially just work this function into the main _traverse() function?
+        # It seems unnecessary to seperate them?
+
         if type(pt) == gpd.GeoDataFrame:
             if len(pt) > 1:
                 warnings.warn(
@@ -148,20 +154,20 @@ class Network:
             return
 
         for line in lines.itertuples(index=False, name='StormLine'):
-            print('Starting new line...')
+            # print('Starting new line...')
             line_oid = line.OBJECTID
             line_x, line_y = self.get_line_coords(line)
-
-            # TODO: What would happen if a newtork had multiple outlet points?
-            # only the last outlet point found would be returned it seems. is this
-            # a problem?
 
             # recursively call search on each of these new lines
             return_pt = self._traverse(
                 pt, line_oid, (line_x, line_y), True, traverse_upstream
             )
-            print('Got a return point:')
-            print(return_pt)
+            
+            if return_pt is not None:
+                # Found a downstream point
+                return return_pt
+            # print('Got a return point:')
+            # print(return_pt)
         
         return return_pt
 
@@ -206,7 +212,7 @@ class Network:
 
         '''
         # TODO: Remove extra comments/prints
-        print('\nStarting _traverse()')
+        # print('\nStarting _traverse()')
         # print(f'type of current_pt: {type(current_pt)}')
 
         if traverse_upstream and self.currentG is None:
@@ -249,7 +255,7 @@ class Network:
             next_pt = self.pts.cx[x, y] # gpd.GeoDataFrame
 
             if len(next_pt) == 0:
-                print('Did not find point at line vertex')
+                # print('Did not find point at line vertex')
                 # TODO: Could still add an empty node here? Sometimes there will be
                 # verticies along lines that have no point features right on the vertex
                 return
@@ -272,7 +278,7 @@ class Network:
                 self.add_infra_edge(next_pt, current_pt)
             elif next_pt.flow == 1:
                 # traversing downstream and just found an outlet point
-                print('Found an outlet point')
+                # print('Found an outlet point')
                 return next_pt
 
             # remove the coord from the line points
@@ -284,7 +290,7 @@ class Network:
                     'the current line are unequal in length'
 
                 # no more points along line to inspect
-                print('Done with line, going to next line')
+                # print('Done with line, going to next line')
                 # find next line(s)
                 lines = self.get_lines_at_point(next_pt)
                 # but get rid of current line, since we already traversed it
@@ -318,21 +324,42 @@ class Network:
                     next_pt, line_oid, (line_x, line_y), False, traverse_upstream
                 )
         
-    def generate_infra_graphs(self, catchment: gpd.GeoSeries) -> None:
+    def generate_catchment_graphs(self, catchment: gpd.GeoSeries) -> None:
         '''
         Generate graph representations of all infrastructure networks that are within a
         catchment.
         '''
         # ensure CRS match
-        if catchment.crs != self.storm_pts.crs:
-            catchment = catchment.to_crs(crs=self.storm_pts.crs)
+        if catchment.crs != self.pts.crs:
+            catchment = catchment.to_crs(crs=self.pts.crs)
 
-        pts = gpd.clip(self.storm_pts, catchment)
+        pts = gpd.clip(self.pts, catchment)
         
+        # Look for all downstream points connected to this catchment's infrastructure
+        downstream_pts = []
         for pt in pts.itertuples(name='StormPoint'):
-            downstream_pt = self.gen.find_downstream_pt(pt)
-            print('Found downstream point...')
-            print(downstream_pt)
+            # print(f'Looking for downstream point for pt: {pt.OBJECTID}')
+            downstream_pt = self.find_downstream_pt(pt)
 
-        self.gen.add_upstream_pts(downstream_pt)
+            # if downstream_pt is None:
+            #     print('Did not find downstream point...')
+            # else:
+            #     print('Found the following downstream point...')
+            #     print(downstream_pt)
+            #     print('\n')
+
+            if downstream_pt is not None:
+                downstream_pts.append(downstream_pt)
+
+        # Traverse all the downstream points upstream to build their networks
+        for pt in downstream_pts:
+            print(f'Adding upstream points for pt {pt.OBJECTID}')
+            # Skip if already in a graph
+            if pt.OBJECTID in self.pt_oids:
+                continue
+            else:
+                self.add_upstream_pts(pt)
+            
+        print(f'self.Gs: {self.Gs}')
+        # self.add_upstream_pts(downstream_pt)
         # print(pt)
