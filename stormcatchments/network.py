@@ -5,6 +5,8 @@ import pandas as pd
 from typing import Optional
 import warnings
 
+import matplotlib.pyplot as plt
+
 # 0 = Flow enters at point
 # 1 = Flow exits at point
 # 2 = Flow neither enters or exits at point
@@ -113,7 +115,7 @@ class Network:
         pt_end_oid = pt_end.OBJECTID
         self.currentG.add_edge(pt_start_oid, pt_end_oid)
 
-    def add_upstream_pts(self, downstream_pt: gpd.GeoDataFrame) -> None:
+    def add_upstream_pts(self, downstream_pt) -> None:
         # line_oid, line_x, line_y = self._get_traverse_args(downstream_pt)
         # self._traverse(downstream_pt, line_oid, (line_x, line_y), True, True)
         # self._init_traverse(downsteam_pt)
@@ -123,7 +125,7 @@ class Network:
         self.currentG = None
         return
 
-    def find_downstream_pt(self, pt: gpd.GeoDataFrame) -> Optional[gpd.GeoDataFrame]:
+    def find_downstream_pt(self, pt) -> Optional[gpd.GeoDataFrame]:
         # line_oid, line_x, line_y = self._get_traverse_args(pt)
         # return self._traverse(pt, line_oid, (line_x, line_y), True, False)
         downsteam_pt = self._init_traverse(pt, False)
@@ -158,7 +160,7 @@ class Network:
             line_oid = line.OBJECTID
             line_x, line_y = self.get_line_coords(line)
 
-            # recursively call search on each of these new lines
+            # enter network traverse function, potential recursion here
             return_pt = self._traverse(
                 pt, line_oid, (line_x, line_y), True, traverse_upstream
             )
@@ -237,6 +239,7 @@ class Network:
             # cooridnates of the current line. This could happen in if verticies along the
             # line share the exact same x coordinates (for example) but have different
             # y coordinates
+            # TODO: Think of a way to address this
 
             if x_index != 0:
                 # downstream point is not listed first in the line coordinates
@@ -250,8 +253,8 @@ class Network:
 
         # iterate through line coords to find next nodes
         for i, (x, y) in enumerate(zip(line_x, line_y)):
-            # TODO: Allow for some sort of buffer here if points are not snapped?
             # try to find a storm_pt with coordinates at this vertex
+            # TODO: Allow for some sort of buffer here if points are not snapped?
             next_pt = self.pts.cx[x, y] # gpd.GeoDataFrame
 
             if len(next_pt) == 0:
@@ -286,10 +289,10 @@ class Network:
             del line_y[i]
 
             if len(line_x) == 0:
+                # no more verticies along line to inspect
                 assert len(line_x) == len(line_y), 'Lists of x and y coordinates for '\
                     'the current line are unequal in length'
 
-                # no more points along line to inspect
                 # print('Done with line, going to next line')
                 # find next line(s)
                 lines = self.get_lines_at_point(next_pt)
@@ -297,13 +300,6 @@ class Network:
                 lines = lines[lines['OBJECTID'] != line_oid]
 
                 # assert lines.columns[0] == 'OBJECTID'
-                # # TODO: Find a way to itertuples instead?
-                # for _, line in lines.iterrows():
-                #     # loop through each line and traverse it upstream
-                #     line_oid = line[0]
-                #     line_x, line_y = self.get_line_coords(line)
-                #     # recursively call search on each of these new lines
-                #     self._traverse(next_pt, line_oid, (line_x, line_y), True, traverse_upstream)
 
                 for line in lines.itertuples(index=False, name='StormLine'):
                     line_oid = line.OBJECTID
@@ -326,8 +322,13 @@ class Network:
         
     def generate_catchment_graphs(self, catchment: gpd.GeoSeries) -> None:
         '''
-        Generate graph representations of all infrastructure networks that are within a
-        catchment.
+        Generate graph representations of all infrastructure networks that are within or
+        partially within a catchment.
+
+        Parameters
+        ----------
+        catchment: gpd.GeoSeries
+            A GeoPandas GeoSeries with the catchment geometry
         '''
         # ensure CRS match
         if catchment.crs != self.pts.crs:
@@ -338,6 +339,13 @@ class Network:
         # Look for all downstream points connected to this catchment's infrastructure
         downstream_pts = []
         for pt in pts.itertuples(name='StormPoint'):
+            if pt.OBJECTID in self.pt_oids:
+                continue
+
+            if pt.flow == 1:
+                # is an outlet point, may bring flow into the catchment
+                self.add_upstream_pts(pt)
+
             # print(f'Looking for downstream point for pt: {pt.OBJECTID}')
             downstream_pt = self.find_downstream_pt(pt)
 
@@ -359,7 +367,11 @@ class Network:
                 continue
             else:
                 self.add_upstream_pts(pt)
-            
-        print(f'self.Gs: {self.Gs}')
+
+        # print(f'self.Gs: {self.Gs}')
+        # for G in self.Gs:
+        #     nx.draw(G)
+        #     plt.show()
+
         # self.add_upstream_pts(downstream_pt)
         # print(pt)
