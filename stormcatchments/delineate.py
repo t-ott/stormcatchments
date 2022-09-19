@@ -106,7 +106,7 @@ class Delineate:
   
     return gpd.GeoSeries(catch_polys).set_crs(epsg=self.grid_epsg)
 
-  def get_inlet_points(self, catchment: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+  def get_inlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
     '''
     Get a GeoDataFrame that contains all the infrastructure points that collect runoff
     that ultimately discharges to the inital pour point.
