@@ -306,8 +306,8 @@ class Network:
                     line_x, line_y = self.get_line_coords(line)
 
                     # TODO: What would happen if a newtork had multiple outlet points?
-                    # only the last outlet point found would be returned it seems. is this
-                    # a problem?
+                    # only the last outlet point found would be returned it seems. is
+                    # this a problem?
 
                     # recursively call search on each of these new lines
                     self._traverse(
@@ -375,3 +375,18 @@ class Network:
 
         # self.add_upstream_pts(downstream_pt)
         # print(pt)
+
+    def get_outlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
+        '''
+        Get GeoDataFrame of all the infrastructure points within the catchment that
+        bring flow out of the current catchment. The catchments for these points will
+        need to be removed from current catchment
+        '''
+        return
+
+    def get_inlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
+        '''
+        Get GeoDataFrame of all the infrastructure points outside the catchment that
+        bring flow into the catchment.
+        '''
+        return
