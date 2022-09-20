@@ -5,7 +5,7 @@ import pandas as pd
 from typing import Optional
 import warnings
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 # 0 = Flow enters at point
 # 1 = Flow exits at point
@@ -62,6 +62,11 @@ class Network:
                 'must only contain values [0, 1, 2]'
         else:
             self.pts['flow'] = self.pts['Type'].map(STORM_PT_FLOWS).fillna(2)
+
+
+        if 'G_index' in self.pts.columns:
+            raise ValueError('Point data must not contain the column "G_index"')
+        self.pts['G_index'] = pd.NA
         
         self.Gs = []
         self.currentG = None
@@ -93,7 +98,9 @@ class Network:
         return line_x, line_y
 
     def add_infra_node(self, pt):
-        '''pt: StormPoint'''
+        '''
+        pt: StormPoint
+        '''
         # oid will be the "name"/index of the node in the graph
         oid = pt.OBJECTID
         self.pt_oids.append(oid) # add to running list of all OIDs
@@ -104,11 +111,14 @@ class Network:
 
         self.currentG.add_node(oid, **pt_dict)
 
+        self.pts.loc[self.pts['OBJECTID']==oid, 'G_index'] = len(self.Gs)
+
     def add_infra_edge(self, pt_start, pt_end):
         '''
-        pt_start: StormPoint
-        
-        pt_end: StormPoint
+        Parameters
+        ----------
+        pt_start: StormPoint namedtuple
+        pt_end: StormPoint namedtupe
         '''
         # connect both points 
         pt_start_oid = pt_start.OBJECTID
@@ -339,6 +349,9 @@ class Network:
         # Look for all downstream points connected to this catchment's infrastructure
         downstream_pts = []
         for pt in pts.itertuples(name='StormPoint'):
+            # if not pd.isna(pt.G_index):
+            #     # Point is already a node in a graph
+            #     continue
             if pt.OBJECTID in self.pt_oids:
                 continue
 
@@ -365,6 +378,8 @@ class Network:
             # Skip if already in a graph
             if pt.OBJECTID in self.pt_oids:
                 continue
+            # if not pd.isna(pt.G_index):
+            #     continue
             else:
                 self.add_upstream_pts(pt)
 
@@ -382,6 +397,12 @@ class Network:
         bring flow out of the current catchment. The catchments for these points will
         need to be removed from current catchment
         '''
+        if catchment.crs != self.pts.crs:
+            catchment = catchment.to_crs(crs=self.pts.crs)
+
+        pts = gpd.clip(self.pts, catchment)
+        sink_pts = pts[pts['flow']==0]
+
         return
 
     def get_inlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
