@@ -44,7 +44,7 @@ class Network:
         storm_pts : gpd.GeoDataFrame
             All the stormwater infrastructure points features within the area of interest
         '''
-        print('Initializing Network...')
+        # print('Initializing Network...')
 
         assert 'OBJECTID' in storm_lines.columns, f'storm_lines must contain a column '\
             'named OBJECTID'
@@ -63,14 +63,8 @@ class Network:
         else:
             self.pts['flow'] = self.pts['Type'].map(STORM_PT_FLOWS).fillna(2)
 
-
-        if 'G_index' in self.pts.columns:
-            raise ValueError('Point data must not contain the column "G_index"')
-        self.pts['G_index'] = pd.NA
-        
-        self.Gs = []
-        self.currentG = None
-        self.pt_oids = []
+        # Initialize empty Directional Graph, can consist many disconnected subgraphs
+        self.G = nx.DiGraph()
     
     def get_lines_at_point(self, pt):
         '''
@@ -99,19 +93,16 @@ class Network:
 
     def add_infra_node(self, pt):
         '''
-        pt: StormPoint
+        pt: StormPoint namedtuple
         '''
         # oid will be the "name"/index of the node in the graph
         oid = pt.OBJECTID
-        self.pt_oids.append(oid) # add to running list of all OIDs
 
         # keep all other columns from row that aren't OBJECTID in node's attributes
         pt_dict = pt._asdict()
         del pt_dict['OBJECTID']
 
-        self.currentG.add_node(oid, **pt_dict)
-
-        self.pts.loc[self.pts['OBJECTID']==oid, 'G_index'] = len(self.Gs)
+        self.G.add_node(oid, **pt_dict)
 
     def add_infra_edge(self, pt_start, pt_end):
         '''
@@ -123,21 +114,35 @@ class Network:
         # connect both points 
         pt_start_oid = pt_start.OBJECTID
         pt_end_oid = pt_end.OBJECTID
-        self.currentG.add_edge(pt_start_oid, pt_end_oid)
+        self.G.add_edge(pt_start_oid, pt_end_oid)
+
+    def get_outlet(self, pt_oid: int) -> int:
+        '''
+        Get OBJECTID(s) of the outlet(s) for a given storm_pt which exists in the graph.
+        Ideally this return be single outlet point.
+
+        Parameters
+        ----------
+        pt_oid: int
+            OBJECTID of point
+        '''
+        assert pt_oid in self.G, f'The node "{pt_oid}" does not exist within the graph'
+        subG = nx.dfs_tree(self.G, pt_oid)
+        outlets = [oid for oid, deg in subG.out_degree() if deg == 0]
+        if len(outlets) == 0:
+            raise ValueError('Subgraph has no outlet.')
+        elif len(outlets) > 1:
+            warnings.warn(
+                f'Multiple outlets found for point with OBJECTID {pt_oid}, only '
+                'returning the first.'
+            )
+        return outlets[0]
 
     def add_upstream_pts(self, downstream_pt) -> None:
-        # line_oid, line_x, line_y = self._get_traverse_args(downstream_pt)
-        # self._traverse(downstream_pt, line_oid, (line_x, line_y), True, True)
-        # self._init_traverse(downsteam_pt)
         self._init_traverse(downstream_pt, True)
-        # Reset currentG
-        self.Gs.append(self.currentG)
-        self.currentG = None
         return
 
     def find_downstream_pt(self, pt) -> Optional[gpd.GeoDataFrame]:
-        # line_oid, line_x, line_y = self._get_traverse_args(pt)
-        # return self._traverse(pt, line_oid, (line_x, line_y), True, False)
         downsteam_pt = self._init_traverse(pt, False)
         return downsteam_pt
 
@@ -178,9 +183,7 @@ class Network:
             if return_pt is not None:
                 # Found a downstream point
                 return return_pt
-            # print('Got a return point:')
-            # print(return_pt)
-        
+
         return return_pt
 
 
@@ -227,9 +230,12 @@ class Network:
         # print('\nStarting _traverse()')
         # print(f'type of current_pt: {type(current_pt)}')
 
-        if traverse_upstream and self.currentG is None:
-            # initialize currentG
-            self.currentG = nx.DiGraph()
+        # if traverse_upstream and self.currentG is None:
+        #     # initialize currentG
+        #     self.currentG = nx.DiGraph()
+        #     self.add_infra_node(current_pt)
+        if traverse_upstream:
+            # initalize subgraph
             self.add_infra_node(current_pt)
 
         line_x, line_y = line_coords
@@ -372,7 +378,7 @@ class Network:
             if downstream_pt is not None:
                 downstream_pts.append(downstream_pt)
 
-        # Traverse all the downstream points upstream to build their networks
+        # Traverse all the downstream points upstream to build their subgraphs
         for pt in downstream_pts:
             print(f'Adding upstream points for pt {pt.OBJECTID}')
             # Skip if already in a graph
@@ -383,13 +389,6 @@ class Network:
             else:
                 self.add_upstream_pts(pt)
 
-        # print(f'self.Gs: {self.Gs}')
-        # for G in self.Gs:
-        #     nx.draw(G)
-        #     plt.show()
-
-        # self.add_upstream_pts(downstream_pt)
-        # print(pt)
 
     def get_outlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
         '''
