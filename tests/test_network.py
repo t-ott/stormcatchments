@@ -38,3 +38,9 @@ def test_find_downstream_pt_culvert(net):
   upstream_pt = net.pts[net.pts['OBJECTID']==245051]
   downstream_pt = net.find_downstream_pt(upstream_pt)
   assert downstream_pt.OBJECTID == 244132
+
+
+def test_generate_catchment_graphs(net):
+  initial_catchment = gpd.read_file('tests/test_data/initial_catchment.shp')
+  net.generate_catchment_graphs(initial_catchment['geometry'])
+  print(net.G.nodes())
