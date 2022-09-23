@@ -1,5 +1,10 @@
 import geopandas as gpd
 import pytest
+
+import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
+
 from stormcatchments import network
 
 @pytest.fixture
@@ -10,11 +15,23 @@ def net():
   return net
 
 
-def test_add_upstream_pts_once(net):
+def test_add_upstream_simple(net):
+  downstream_pt = net.pts[net.pts['OBJECTID']==244244]
+  net.add_upstream_pts(downstream_pt)
+  net.draw_G()
+  print('Getting geom...')
+  print(net.G[244244])
+  # print(nx.get_node_attributes(net.G, 'geometry')[0])
+
+  assert len(net.G.nodes()) == 3
+
+def test_add_upstream_complex(net):
   downstream_pt = net.pts[net.pts['OBJECTID']==21134]
   net.add_upstream_pts(downstream_pt)
-  assert len(net.G.nodes()) == 5
 
+  # TODO:
+  # How many nodes are there supposed to be?
+  
 
 def test_add_upstream_pts_twice(net):
   # 5 nodes
@@ -25,7 +42,9 @@ def test_add_upstream_pts_twice(net):
   downstream_pt = net.pts[net.pts['OBJECTID']==244153]
   net.add_upstream_pts(downstream_pt)
 
-  assert len(net.G.nodes()) == 9
+  # assert len(net.G.nodes()) == 9
+  # nx.draw(net.G)
+  # plt.show()
 
 
 def test_get_outlet(net):

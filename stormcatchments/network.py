@@ -6,8 +6,6 @@ from typing import Optional
 from shapely.geometry import Point
 import warnings
 
-# import matplotlib.pyplot as plt
-
 # 0 = Flow enters at point
 # 1 = Flow exits at point
 # 2 = Flow neither enters or exits at point
@@ -173,7 +171,6 @@ class Network:
             return
 
         for line in lines.itertuples(index=False, name='StormLine'):
-            # print('Starting new line...')
             line_oid = line.OBJECTID
             line_x, line_y = self.get_line_coords(line)
 
@@ -235,9 +232,6 @@ class Network:
             Can also return None if no downstream point is found while traversing
             downstream.
         '''
-        # TODO: Remove extra comments/prints
-        # print('\nStarting _traverse()')
-        # print(f'type of current_pt: {type(current_pt)}')
 
         if traverse_upstream:
             # initalize subgraph
@@ -256,11 +250,11 @@ class Network:
             x_index = line_x.index(current_pt_x)
             y_index = line_y.index(current_pt_y)
             assert x_index == y_index
+            # TODO: Think of a way to address this:
             # This could fail to find the CORRECT index of the downstream point within the
             # cooridnates of the current line. This could happen in if verticies along the
             # line share the exact same x coordinates (for example) but have different
             # y coordinates
-            # TODO: Think of a way to address this
 
             if x_index != 0:
                 # downstream point is not listed first in the line coordinates
@@ -283,25 +277,27 @@ class Network:
             next_pt = self.pts.cx[x, y] # gpd.GeoDataFrame
 
             if len(next_pt) == 0:
-                # print('Did not find point at line vertex')
-                # TODO: Could still add an empty node here? Sometimes there will be
-                # verticies along lines that have no point features right on the vertex
+                # TODO: Can either assign a new point here to represnt a line vertex
+                # with no corresponding StormPoint. Or can end the traverse of this
+                # line here, which would only allow line verticies that have StormPoints
+                # on them into the graph. Could end here with:
+                # return
                 
-                # # TODO: Assigning a new_oid here can be risky if graphs are to be
-                # # reused. What if a user wants to take a big graph that was previously
-                # # generated and saved, then expand it with neighboring data? Then
-                # # certain values for these verticies may have been assigned OBJECTIDs
-                # # that are represented as actual storm points in the new data. An
-                # # alternate way of approaching this is giving these points an OBJECTID
-                # # of 0, then checking for membership in the graph by geometry.
+                # TODO: Assigning a new_oid here can be risky if graphs are to be
+                # reused. What if a user wants to take a big graph that was previously
+                # generated and saved, then expand it with neighboring data? Then
+                # certain values for these verticies may have been assigned OBJECTIDs
+                # that are represented as actual storm points in the new data. An
+                # alternate way of approaching this is giving these points an OBJECTID
+                # of 0, then checking for membership in the graph by geometry.
 
-                # # Add a point to self.pts for this vertex
-                # new_oid = self.pts['OBJECTID'].max() + 1
-                # new_pt = {'OBJECTID': new_oid, 'Type': 0, 'geometry': Point(x, y)}
-                # self.pts = self.pts.append(next_pt, ignore_index=True)
-                # next_pt = self.pts[self.pts['OBJECTID']==new_oid]
-
-                return
+                # Add a point to self.pts for this vertex
+                new_oid = self.pts['OBJECTID'].max() + 1
+                new_pt = {
+                    'OBJECTID': new_oid, 'Type': 0, 'flow': 2, 'geometry': Point(x, y)
+                }
+                self.pts = self.pts.append(new_pt, ignore_index=True)
+                next_pt = self.pts[self.pts['OBJECTID']==new_oid]
             elif len(next_pt) > 1:
                 warnings.warn(
                     'Found more than one point at stormline vertex, only keeping '
@@ -412,3 +408,40 @@ class Network:
                 continue
             else:
                 self.add_upstream_pts(pt)
+
+    def draw_G(self, subG_node: int=None, ax=None):
+        '''
+        Draw the Graph using the geographic coordinates of each node
+
+        Parameters
+        ----------
+        subG_node: int
+            Name (OBJECTID) of node for which only its connected nodes will be drawn.
+            Any nodes without a path to subG_node will therefore not be drawn.
+        
+        ax: plt.axes | None
+        '''
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        # TODO: Integrate contextily basemaps?
+        # import contextily as cx
+
+        if ax is None:
+            ax = plt.gca()
+            ax.axis('equal')
+
+        coords = np.array([
+            [geom.x, geom.y] for pt, geom in 
+            nx.get_node_attributes(self.G, 'geometry').items()
+        ])
+        pt_type = np.array([
+            pt_type for pt, pt_type in nx.get_node_attributes(self.G, 'Type').items()
+        ])
+
+        ax.scatter(coords[:, 0], coords[:, 1], c=pt_type)
+
+        # TODO:
+        # Add edges
+        
+        plt.show()
