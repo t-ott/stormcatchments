@@ -8,14 +8,14 @@ import matplotlib.pyplot as plt
 from stormcatchments import network
 
 @pytest.fixture
-def net():
-  storm_lines = gpd.read_file('tests/test_data/storm_lines.shp')
-  storm_pts = gpd.read_file('tests/test_data/storm_pts.shp')
+def net_johnson():
+  storm_lines = gpd.read_file('tests/test_data/johnson_vt/storm_lines.shp')
+  storm_pts = gpd.read_file('tests/test_data/johnson_vt/storm_pts.shp')
   net = network.Network(storm_lines, storm_pts)
   return net
 
 
-def test_add_upstream_simple(net):
+def test_add_upstream_simple_johnson(net):
   downstream_pt = net.pts[net.pts['OBJECTID']==244244]
   net.add_upstream_pts(downstream_pt)
   net.draw_G()
@@ -25,7 +25,7 @@ def test_add_upstream_simple(net):
 
   assert len(net.G.nodes()) == 3
 
-def test_add_upstream_complex(net):
+def test_add_upstream_complex_johnson(net):
   downstream_pt = net.pts[net.pts['OBJECTID']==21134]
   net.add_upstream_pts(downstream_pt)
 
@@ -33,7 +33,7 @@ def test_add_upstream_complex(net):
   # How many nodes are there supposed to be?
   
 
-def test_add_upstream_pts_twice(net):
+def test_add_upstream_twice_johnson(net):
   # 5 nodes
   downstream_pt = net.pts[net.pts['OBJECTID']==21134]
   net.add_upstream_pts(downstream_pt)
@@ -47,19 +47,19 @@ def test_add_upstream_pts_twice(net):
   # plt.show()
 
 
-def test_get_outlet(net):
+def test_get_outlet_johnson(net):
   downstream_pt = net.pts[net.pts['OBJECTID']==21134]
   net.add_upstream_pts(downstream_pt)
   assert net.get_outlet(20847) == 21134
 
 
-def test_find_downstream_pt_culvert(net):
+def test_find_downstream_simple_johnson(net):
   upstream_pt = net.pts[net.pts['OBJECTID']==245051]
   downstream_pt = net.find_downstream_pt(upstream_pt)
   assert downstream_pt.OBJECTID == 244132
 
 
-def test_generate_catchment_graphs(net):
+def test_generate_catchment_graphs_johnson(net):
   initial_catchment = gpd.read_file('tests/test_data/initial_catchment.shp')
   net.generate_catchment_graphs(initial_catchment['geometry'])
   print(net.G.nodes())
