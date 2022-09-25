@@ -29,11 +29,10 @@ class Network:
         All the stormwater infrastructure line features within the area of interest
     pts : gpd.GeoDataFrame
         All the stormwater infrastructure point features within the area of interest
-    Gs : list
+    G : list
         A list of all the graphs generated within the area of interest
-    currentG : None | nx.DiGraph
-        The current networkx directional graph being generated. Once finished, it
-        will be appended to Gs
+    crs : pyproj.crs.crs.CRS
+        The PyProj Coordinate Reference System of infrastructure data
     '''
     def __init__(self, storm_lines: gpd.GeoDataFrame, storm_pts: gpd.GeoDataFrame):
         '''
@@ -62,6 +61,12 @@ class Network:
                 'must only contain values [0, 1, 2]'
         else:
             self.pts['flow'] = self.pts['Type'].map(STORM_PT_FLOWS).fillna(2)
+
+        assert self.pts.crs == self.lines.crs, f'Coordinate reference systems of ' \
+            'point and line datasets must match'
+        self.crs = self.pts.crs
+
+        print(type(self.crs))
 
         # Initialize empty Directional Graph, can consist many disconnected subgraphs
         self.G = nx.DiGraph()
@@ -423,13 +428,28 @@ class Network:
         '''
         import matplotlib.pyplot as plt
         import numpy as np
-
-        # TODO: Integrate contextily basemaps?
-        # import contextily as cx
+        import contextily as cx
 
         if ax is None:
             ax = plt.gca()
             ax.axis('equal')
+
+        # Plot edges as arrows
+        for edge in self.G.edges():
+            u_geom = self.G.nodes[edge[0]]['geometry']
+            v_geom = self.G.nodes[edge[1]]['geometry']
+            ax.arrow(
+                u_geom.x,
+                u_geom.y,
+                v_geom.x - u_geom.x,
+                v_geom.y - u_geom.y,
+                width=0.1,
+                head_width=1,
+                length_includes_head=True,
+                ec='red',
+                fc='red',
+                zorder=1
+            )
 
         coords = np.array([
             [geom.x, geom.y] for pt, geom in 
@@ -439,9 +459,13 @@ class Network:
             pt_type for pt, pt_type in nx.get_node_attributes(self.G, 'Type').items()
         ])
 
-        ax.scatter(coords[:, 0], coords[:, 1], c=pt_type)
+        ax.scatter(coords[:, 0], coords[:, 1], c=pt_type, marker='s', s=5, zorder=2)
 
-        # TODO:
-        # Add edges
-        
+        try:
+            cx.add_basemap(
+                ax, source=cx.providers.Esri.WorldImagery, crs=self.crs.to_string()
+            )
+        except:
+            print()
+
         plt.show()

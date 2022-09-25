@@ -19,8 +19,8 @@ def test_add_upstream_simple_johnson(net_johnson):
   downstream_pt = net_johnson.pts[net_johnson.pts['OBJECTID']==244244]
   net_johnson.add_upstream_pts(downstream_pt)
   net_johnson.draw_G()
-  print('Getting geom...')
-  print(net_johnson.G[244244])
+  # print('Getting geom...')
+  # print(net_johnson.G[244244])
   # print(nx.get_node_attributes(net.G, 'geometry')[0])
 
   assert len(net_johnson.G.nodes()) == 3
@@ -29,6 +29,7 @@ def test_add_upstream_complex_johnson(net_johnson):
   downstream_pt = net_johnson.pts[net_johnson.pts['OBJECTID']==21134]
   net_johnson.add_upstream_pts(downstream_pt)
 
+  net_johnson.draw_G()
   # TODO:
   # How many nodes are there supposed to be?
   
