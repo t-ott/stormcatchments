@@ -66,8 +66,6 @@ class Network:
             'point and line datasets must match'
         self.crs = self.pts.crs
 
-        print(type(self.crs))
-
         # Initialize empty Directional Graph, can consist many disconnected subgraphs
         self.G = nx.DiGraph()
     
@@ -394,7 +392,7 @@ class Network:
         # Look for all downstream points connected to this catchment's infrastructure
         downstream_pts = []
         for pt in pts.itertuples(name='StormPoint'):
-            print(f'Starting on point {pt.OBJECTID}')
+            # print(f'Starting on point {pt.OBJECTID}')
             if pt.OBJECTID in self.G:
                 continue
             if pt.flow == 1:
@@ -407,14 +405,13 @@ class Network:
 
         # Traverse all the downstream points upstream to build their subgraphs
         for pt in downstream_pts:
-            print(f'Adding upstream points for pt {pt.OBJECTID}')
             # Skip if already in a graph
             if pt.OBJECTID in self.G:
                 continue
             else:
                 self.add_upstream_pts(pt)
 
-    def draw_G(self, subG_node: int=None, ax=None):
+    def draw_G(self, subG_node: int=None, ax=None, add_basemap=True):
         '''
         Draw the Graph using the geographic coordinates of each node
 
@@ -425,10 +422,17 @@ class Network:
             Any nodes without a path to subG_node will therefore not be drawn.
         
         ax: plt.axes | None
+        
+        add_basemap: bool
+            Option to add a contextily basemap to the plot
         '''
         import matplotlib.pyplot as plt
         import numpy as np
-        import contextily as cx
+        if add_basemap:
+            try:
+                import contextily as cx
+            except ImportError as e:
+                print(e)
 
         if ax is None:
             ax = plt.gca()
@@ -461,11 +465,12 @@ class Network:
 
         ax.scatter(coords[:, 0], coords[:, 1], c=pt_type, marker='s', s=5, zorder=2)
 
-        try:
-            cx.add_basemap(
-                ax, source=cx.providers.Esri.WorldImagery, crs=self.crs.to_string()
-            )
-        except:
-            print()
+        if add_basemap:
+            try:
+                cx.add_basemap(
+                    ax, source=cx.providers.Esri.WorldImagery, crs=self.crs.to_string()
+                )
+            except Exception as e:
+                print('Unable to add contextily basemap due to the following error:', e)
 
         plt.show()

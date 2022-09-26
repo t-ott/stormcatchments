@@ -18,34 +18,33 @@ def net_johnson():
 def test_add_upstream_simple_johnson(net_johnson):
   downstream_pt = net_johnson.pts[net_johnson.pts['OBJECTID']==244244]
   net_johnson.add_upstream_pts(downstream_pt)
-  net_johnson.draw_G()
-  # print('Getting geom...')
-  # print(net_johnson.G[244244])
-  # print(nx.get_node_attributes(net.G, 'geometry')[0])
-
   assert len(net_johnson.G.nodes()) == 3
+
 
 def test_add_upstream_complex_johnson(net_johnson):
   downstream_pt = net_johnson.pts[net_johnson.pts['OBJECTID']==21134]
   net_johnson.add_upstream_pts(downstream_pt)
 
-  net_johnson.draw_G()
-  # TODO:
-  # How many nodes are there supposed to be?
-  
+  # Ensure correct number of nodes are present
+  assert len(net_johnson.G.nodes()) == 34
+
+  # Ensure all node coordinates are unique
+  coords = set()
+  for _, pt in nx.get_node_attributes(net_johnson.G, 'geometry').items():
+    assert (pt.x, pt.y) not in coords, 'Graph has a duplicate coordinate'
+    coords.add((pt.x, pt.y))
+
 
 def test_add_upstream_twice_johnson(net_johnson):
-  # 5 nodes
-  downstream_pt = net_johnson.pts[net_johnson.pts['OBJECTID']==21134]
+  # 3 nodes
+  downstream_pt = net_johnson.pts[net_johnson.pts['OBJECTID']==244244]
   net_johnson.add_upstream_pts(downstream_pt)
 
-  # 4 nodes, disconnected from previous subgraph
+  # 5 nodes, disconnected from previous subgraph
   downstream_pt = net_johnson.pts[net_johnson.pts['OBJECTID']==244153]
   net_johnson.add_upstream_pts(downstream_pt)
 
-  # assert len(net_johnson.G.nodes()) == 9
-  # nx.draw(net_johnson.G)
-  # plt.show()
+  assert len(net_johnson.G.nodes()) == 8
 
 
 def test_get_outlet_johnson(net_johnson):
@@ -63,4 +62,5 @@ def test_find_downstream_simple_johnson(net_johnson):
 def test_generate_catchment_graphs_johnson(net_johnson):
   initial_catchment = gpd.read_file('tests/test_data/johnson_vt/initial_catchment.shp')
   net_johnson.generate_catchment_graphs(initial_catchment['geometry'])
-  print(net_johnson.G.nodes())
+  # print(net_johnson.G.nodes())
+  net_johnson.draw_G()
