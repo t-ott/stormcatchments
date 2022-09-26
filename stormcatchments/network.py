@@ -6,6 +6,11 @@ from typing import Optional
 from shapely.geometry import Point
 import warnings
 
+# TODO: Change this to be two boolean variables, 1 being "IS_SINK" (flow enters here)
+# and the other being "IS_SOURCE" (flow exits here). Also give user the option to
+# enter their own key for each variable to match integer types to their boolean values
+# for IS_SINK and IS_SOURCE
+
 # 0 = Flow enters at point
 # 1 = Flow exits at point
 # 2 = Flow neither enters or exits at point
@@ -311,12 +316,11 @@ class Network:
             next_pt = next(pt_iter)
 
             if traverse_upstream:
-                # adding edge from next_pt -> current_pt
+                # add new node and edge from next_pt -> current_pt
                 self.add_infra_node(next_pt)
                 self.add_infra_edge(next_pt, current_pt)
             elif next_pt.flow == 1:
                 # traversing downstream and just found an outlet point
-                # print('Found an outlet point')
                 return next_pt
 
             # remove the coord from the line points
@@ -342,15 +346,19 @@ class Network:
                     # this a problem?
 
                     # recursively call search on each of these new lines
-                    self._traverse(
+                    return_pt = self._traverse(
                         next_pt, line_oid, (line_x, line_y), True, traverse_upstream
                     )
+                    if return_pt is not None:
+                        return return_pt
+                    # print(return_val)
     
             else:
                 # recursively call search
                 self._traverse(
                     next_pt, line_oid, (line_x, line_y), False, traverse_upstream
                 )
+                # TODO: Conditionally return a value if return_pt is not None?
 
     def get_outlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
         '''
@@ -392,14 +400,16 @@ class Network:
         # Look for all downstream points connected to this catchment's infrastructure
         downstream_pts = []
         for pt in pts.itertuples(name='StormPoint'):
-            # print(f'Starting on point {pt.OBJECTID}')
+            print(f'Starting on point {pt.OBJECTID}')
             if pt.OBJECTID in self.G:
                 continue
             if pt.flow == 1:
                 # is an outlet point, may bring flow into the catchment
                 self.add_upstream_pts(pt)
-            else:  
+            else:
+                print(f'Finding downstream pt for: {pt.OBJECTID}')
                 downstream_pt = self.find_downstream_pt(pt)
+                print(f'Downstream_pt: {downstream_pt}')
                 if downstream_pt is not None:
                     downstream_pts.append(downstream_pt)
 
@@ -429,10 +439,7 @@ class Network:
         import matplotlib.pyplot as plt
         import numpy as np
         if add_basemap:
-            try:
-                import contextily as cx
-            except ImportError as e:
-                print(e)
+            import contextily as cx
 
         if ax is None:
             ax = plt.gca()
@@ -462,7 +469,7 @@ class Network:
         pt_type = np.array([
             pt_type for pt, pt_type in nx.get_node_attributes(self.G, 'Type').items()
         ])
-
+        # Plot nodes 
         ax.scatter(coords[:, 0], coords[:, 1], c=pt_type, marker='s', s=5, zorder=2)
 
         if add_basemap:
@@ -471,6 +478,9 @@ class Network:
                     ax, source=cx.providers.Esri.WorldImagery, crs=self.crs.to_string()
                 )
             except Exception as e:
-                print('Unable to add contextily basemap due to the following error:', e)
+                warnings.warn(
+                    'The following exception was raised while trying to add the'
+                    'contextily basemap:', e
+                )
 
         plt.show()

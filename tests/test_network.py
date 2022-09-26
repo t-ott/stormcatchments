@@ -1,9 +1,6 @@
 import geopandas as gpd
-import pytest
-
-import numpy as np
 import networkx as nx
-import matplotlib.pyplot as plt
+import pytest
 
 from stormcatchments import network
 
@@ -62,5 +59,10 @@ def test_find_downstream_simple_johnson(net_johnson):
 def test_generate_catchment_graphs_johnson(net_johnson):
   initial_catchment = gpd.read_file('tests/test_data/johnson_vt/initial_catchment.shp')
   net_johnson.generate_catchment_graphs(initial_catchment['geometry'])
-  # print(net_johnson.G.nodes())
-  net_johnson.draw_G()
+  pt_types = [
+    pt_type for _, pt_type in nx.get_node_attributes(net_johnson.G, 'Type').items()
+  ]
+  # 3 catchbasins
+  assert pt_types.count(2) == 3
+  # 3 culvert outlets
+  assert pt_types.count(9) == 3
