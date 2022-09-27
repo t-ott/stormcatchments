@@ -6,22 +6,15 @@ from typing import Optional
 from shapely.geometry import Point
 import warnings
 
-# TODO: Change this to be two boolean variables, 1 being "IS_SINK" (flow enters here)
-# and the other being "IS_SOURCE" (flow exits here). Also give user the option to
-# enter their own key for each variable to match integer types to their boolean values
-# for IS_SINK and IS_SOURCE
+SINK_TYPES_VT = [   
+    2, # Catchbasin
+    8, # Culvert inlet
+]
 
-# 0 = Flow enters at point
-# 1 = Flow exits at point
-# 2 = Flow neither enters or exits at point
-STORM_PT_FLOWS = {
-    0: 2, # Typeless line vertex
-    2: 0, # Catchbasin
-    3: 2, # Stormwater manhole
-    5: 1, # Outfall
-    8: 0, # Culvert inlet
-    9: 1, # Culvert outlet
-}
+SOURCE_TYPES_VT = [
+    5, # Outfall
+    9, # Culvert outlet
+]
 
 class Network:
     '''
@@ -39,7 +32,14 @@ class Network:
     crs : pyproj.crs.crs.CRS
         The PyProj Coordinate Reference System of infrastructure data
     '''
-    def __init__(self, storm_lines: gpd.GeoDataFrame, storm_pts: gpd.GeoDataFrame):
+    def __init__(
+        self,
+        storm_lines: gpd.GeoDataFrame,
+        storm_pts: gpd.GeoDataFrame,
+        type_column: str='Type',
+        sink_types: list=SINK_TYPES_VT,
+        source_types: list=SOURCE_TYPES_VT,
+    ):
         '''
         Parameters:
         ----------
@@ -47,6 +47,15 @@ class Network:
             All the stormwater infrastructure line features within the area of interest
         storm_pts : gpd.GeoDataFrame
             All the stormwater infrastructure points features within the area of interest
+        type_column: str
+            Column in storm_pts GeoDataFrame that represents the type of each point
+            (e.g., catchbasins, outfalls, culverts)
+        is_sink_types: list
+            List of type values that correspond to flow sinks, where flow enters at
+            these points, such as a catchbasin
+        is_source_types: list
+            List of type values that correspond to flow sources, where flow exits at
+            these points, such as an outfall 
         '''
         # print('Initializing Network...')
 
@@ -54,18 +63,29 @@ class Network:
             'named OBJECTID'
         self.lines = storm_lines
         
-        assert 'OBJECTID' in storm_pts.columns, f'storm_pts must contain a column '\
-            'named OBJECTID'
-        assert 'Type' in storm_pts.columns, f'storm_pts must contain a column '\
-            'named Type'
-        
+        if 'OBJECTID' not in storm_pts.columns:
+            raise ValueError('Parameter storm_pts must contain a column "OBJECTID"')
+        elif type_column not in storm_pts.columns:
+            raise ValueError(
+                f'type_column "{type_column}" is not a column in storm_pts'
+            )
         self.pts = storm_pts
-        if 'flow' in self.pts.columns:
-            flow_vals = storm_pts['flow'].unique().tolist()
-            assert sorted(flow_vals) == [0, 1, 2], f'Column "flow" in storm_pts' \
-                'must only contain values [0, 1, 2]'
+
+        if 'IS_SINK' in storm_pts.columns:
+            assert storm_pts.dtypes['IS_SINK'] == bool, 'storm_pts column "IS_SINK" ' \
+                'must be bool dtype'
         else:
-            self.pts['flow'] = self.pts['Type'].map(STORM_PT_FLOWS).fillna(2)
+            self.pts['IS_SINK'] = self.pts[type_column].apply(
+                lambda x: True if x in sink_types else False
+            )
+
+        if 'IS_SOURCE' in storm_pts.columns:
+            assert storm_pts.dtypes['IS_SOURCE'] == bool, 'storm_pts column ' \
+                '"IS_SOURCE" must be bool dtype'
+        else:
+            self.pts['IS_SOURCE'] = self.pts[type_column].apply(
+                lambda x: True if x in source_types else False
+            )
 
         assert self.pts.crs == self.lines.crs, f'Coordinate reference systems of ' \
             'point and line datasets must match'
@@ -302,7 +322,11 @@ class Network:
                 # Add a point to self.pts for this vertex
                 new_oid = self.pts['OBJECTID'].max() + 1
                 new_pt = {
-                    'OBJECTID': new_oid, 'Type': 0, 'flow': 2, 'geometry': Point(x, y)
+                    'OBJECTID': new_oid,
+                    'Type': 0,
+                    'IS_SINK': False,
+                    'IS_SOURCE': False,
+                    'geometry': Point(x, y),
                 }
                 self.pts = self.pts.append(new_pt, ignore_index=True)
                 next_pt = self.pts[self.pts['OBJECTID']==new_oid]
@@ -319,7 +343,7 @@ class Network:
                 # add new node and edge from next_pt -> current_pt
                 self.add_infra_node(next_pt)
                 self.add_infra_edge(next_pt, current_pt)
-            elif next_pt.flow == 1:
+            elif next_pt.IS_SOURCE:
                 # traversing downstream and just found an outlet point
                 return next_pt
 
@@ -370,7 +394,7 @@ class Network:
             catchment = catchment.to_crs(crs=self.pts.crs)
 
         pts = gpd.clip(self.pts, catchment)
-        sink_pts = pts[pts['flow']==0]
+        sink_pts = pts[pts['IS_SINK']==True]
 
         return
 
@@ -403,7 +427,7 @@ class Network:
             print(f'Starting on point {pt.OBJECTID}')
             if pt.OBJECTID in self.G:
                 continue
-            if pt.flow == 1:
+            if pt.IS_SOURCE:
                 # is an outlet point, may bring flow into the catchment
                 self.add_upstream_pts(pt)
             else:
