@@ -1,7 +1,6 @@
 from collections import namedtuple
 import geopandas as gpd
 import networkx as nx
-import pandas as pd
 from typing import Optional
 from shapely.geometry import Point
 import warnings
@@ -62,7 +61,7 @@ class Network:
         assert 'OBJECTID' in storm_lines.columns, f'storm_lines must contain a column '\
             'named OBJECTID'
         self.lines = storm_lines
-        
+
         if 'OBJECTID' not in storm_pts.columns:
             raise ValueError('Parameter storm_pts must contain a column "OBJECTID"')
         elif type_column not in storm_pts.columns:

@@ -7,37 +7,21 @@ import pysheds
 from pysheds.grid import Grid
 from shapely.geometry import mapping, Polygon
 
-# Force reload, for delevopment
-# import importlib
-from . import network
-# importlib.reload(graphs)
-# from graphs import Graphs
-
-STORM_PT_FLOWS = {
-    2: 0, # Catchbasin
-    3: 2, # Stormwater manhole
-    5: 1, # Outfall
-    8: 0, # Culvert inlet',
-    9: 1, # Culvert outlet'
-}
+from .network import Network
 
 class Delineate:
   def __init__(
       self,
-      storm_lines: gpd.GeoDataFrame,
-      storm_pts: gpd.GeoDataFrame,
-      # grid: pysheds.sgrid.sGrid,
-      # fdir: pysheds.sgrid.sGrid,
-      # acc: pysheds.sgrid.sGrid,
-      # grid_epsg: int,
+      network: Network,
+      grid: pysheds.sgrid.sGrid,
+      fdir: pysheds.sgrid.sGrid,
+      acc: pysheds.sgrid.sGrid,
+      grid_epsg: int,
     ):
     '''
-    storm_lines: gpd.GeoDataFrame
-
-    storm_pts: gpd.GeoDataFrame
-      Needs a column "flow" with integer values representing which direction flow
-      travels through the given point type => {0: Flow enters at point, 1: Flow exits 
-      at point, 2: Flow neither enters not exits}
+    network: stormcatchments.network.Network
+      Network object that will be used to drive the networking / infrastructure
+      connectivity aspects of catchment delineation
     
     grid: pysheds.sgrid.sGrid
       DEM
@@ -51,25 +35,11 @@ class Delineate:
     grid_epsg: None | int
       EPSG code for the CRS of the DEM
     '''
-    self.storm_lines = storm_lines
-
-    self.storm_pts = storm_pts
-    if 'flow' in self.storm_pts.columns:
-        flow_vals = self.storm_pts['flow'].unique().tolist()
-        assert sorted(flow_vals) == [0, 1, 2], f'Column "flow" in storm_pts' \
-                  'must only contain values [0, 1, 2]'
-    else:
-        self.storm_pts['flow'] = self.storm_pts['Type'].map(STORM_PT_FLOWS).fillna(2)
-
-    # assert 'flow' in storm_pts.columns, 'storm_pts must contain a column named "flow"' \
-    #   ' with integer values representing the direction of flow at a given point'
-    # self.storm_pts = storm_pts
-    self.gen = network.Network(storm_lines, storm_pts)
-
-    # self.grid = grid
-    # self.fdir = fdir
-    # self.acc = acc
-    # self.grid_epsg = grid_epsg
+    self.net = network
+    self.grid = grid
+    self.fdir = fdir
+    self.acc = acc
+    self.grid_epsg = grid_epsg
 
   def get_catchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoSeries:
     """
@@ -106,20 +76,39 @@ class Delineate:
   
     return gpd.GeoSeries(catch_polys).set_crs(epsg=self.grid_epsg)
 
-  def get_inlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
+  def delineate_points(self, pts: gpd.GeoDataFrame, how: str) -> list:
     '''
-    Get a GeoDataFrame that contains all the infrastructure points that collect runoff
-    that ultimately discharges to the inital pour point.
+    Delineate catchments for a subset of infrastructure points
     '''
-    pass
+    if how not in ['inlet', 'outlet']:
+      raise ValueError(f'"{how}" is an invalid option for "how", must be "" or ""')
 
-  def delineate_inlet_points(self, inlet_pts: gpd.GeoDataFrame) -> list:
+  def get_stormcatchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoSeries:
     '''
-    Delineate catchments for any infrastructure inlet point that ties into the initial
-    catchment.
+    Delineate a stormcatchment
     '''
-    pass
+    catchment = self.get_catchment(pour_pt, acc_thresh)
+    self.net.generate_catchment_graphs(catchment)
 
+    while True:
+      outlet_pts = self.net.get_outlet_points(catchment)
+      if outlet_pts is not None:
+        outlet_catchments = self.delineate_points(outlet_pts, how='outlet')
+        catchment = gpd.overlay(catchment, outlet_catchments, how='difference')
+        catchment = catchment.dissolve()
+
+      inlet_pts = self.net.get_inlet_points(catchment)
+      if inlet_pts is not None:
+        inlet_catchments = self.delineate_points(inlet_pts, how='inlet')
+        catchment = gpd.overlay(catchment, inlet_catchments, how='union')
+        catchment = catchment.dissolve()
+        self.net.generate_catchment_graphs(catchment)
+      
+      if outlet_pts is None and inlet_pts is None:
+        # Stormcatchment complete
+        break
+
+    return catchment
 
   def poly_to_shp(self, poly, shp_path, epsg):
     schema = {
