@@ -27,7 +27,7 @@ class Delineate:
       DEM
 
     acc: pysheds.sview.Raster
-        A pysehds flow accumulation raster
+      A pysehds flow accumulation raster
 
     fdir: pysheds.sview.Raster
       A pysheds flow direction raster
@@ -81,7 +81,14 @@ class Delineate:
     Delineate catchments for a subset of infrastructure points
     '''
     if how not in ['inlet', 'outlet']:
-      raise ValueError(f'"{how}" is an invalid option for "how", must be "" or ""')
+      raise ValueError(
+        f'"{how}" is an invalid option for "how", must be "inlet" or "outlet"'
+      )
+    
+    pt_coords = pts['geometry'].tolist()
+    
+    return
+
 
   def get_stormcatchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoSeries:
     '''
