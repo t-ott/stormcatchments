@@ -388,12 +388,23 @@ class Network:
         Get GeoDataFrame of all the infrastructure points within the catchment that
         bring flow out of the current catchment. The catchments for these points will
         need to be removed from current catchment
+
+        Parameters
+        ----------
+        catchment: gpd.GeoSeries
+            GeoPandas GeoSeries containing the geometry for the current catchment
         '''
         if catchment.crs != self.pts.crs:
             catchment = catchment.to_crs(crs=self.pts.crs)
 
-        pts = gpd.clip(self.pts, catchment)
-        sink_pts = pts[pts['IS_SINK']==True]
+        catchment_pts = gpd.clip(self.pts, catchment)
+        sink_pts = catchment_pts[catchment_pts['IS_SINK']==True]
+        sink_pt_oids = sink_pts['OBJECTID'].tolist()
+        outlet_oids = [self.get_outlet(oid) for oid in sink_pt_oids]
+        oids_to_remove = [oid for oid in outlet_oids if oid not in catchment_pts.values]
+
+        # TODO
+        # Index self.pts to get oids_to_remove
 
         return
 
