@@ -400,20 +400,49 @@ class Network:
         catchment_pts = gpd.clip(self.pts, catchment)
         sink_pts = catchment_pts[catchment_pts['IS_SINK']==True]
         sink_pt_oids = sink_pts['OBJECTID'].tolist()
-        outlet_oids = [self.get_outlet(oid) for oid in sink_pt_oids]
-        oids_to_remove = [oid for oid in outlet_oids if oid not in catchment_pts.values]
 
-        # TODO
-        # Index self.pts to get oids_to_remove
-
-        return
+        oids_to_remove = []
+        for sink_pt_oid in sink_pt_oids:
+            outlet_oid = self.get_outlet(sink_pt_oid)
+            if outlet_oid not in catchment_pts['OBJECTID'].values:
+                oids_to_remove.append(sink_pt_oid)
+        
+        return self.pts[self.pts['OBJECTID'].isin(oids_to_remove)]
 
     def get_inlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
         '''
         Get GeoDataFrame of all the infrastructure points outside the catchment that
         bring flow into the catchment.
         '''
-        return
+        if catchment.crs != self.pts.crs:
+            catchment = catchment.to_crs(crs=self.pts.crs)
+
+        catchment_pts = gpd.clip(self.pts, catchment)
+        source_pts = catchment_pts[catchment_pts['IS_SOURCE']==True]
+        source_pt_oids = source_pts['OBJECTID'].tolist()
+        
+        # get subgraphs for each source_pt
+        source_subGs = []
+        for subG in nx.weakly_connected_components(self.G):
+            for source_pt_oid in source_pt_oids:
+                if source_pt_oid in subG:
+                    source_subGs.append(subG)
+        
+        # find points from each subgraph that contribute flow to current catchment
+        oids_to_add = []
+        for subG in source_subGs:
+            for node in subG:
+                # print(node)
+                if node in catchment_pts['OBJECTID'].values:
+                    continue
+
+                # TODO: Need to lookup value for 'IS_SINK' based on the OBJECTID for
+                # node. This could be done much more easily if the index of self.pts was
+                # set to OBJECTID!
+                if self.pts.at[node, 'IS_SINK']:
+                    oids_to_add.append(node)
+        
+        return self.pts[self.pts['OBJECTID'].isin(oids_to_add)]
      
     def generate_catchment_graphs(self, catchment: gpd.GeoSeries) -> None:
         '''
@@ -434,16 +463,16 @@ class Network:
         # Look for all downstream points connected to this catchment's infrastructure
         downstream_pts = []
         for pt in pts.itertuples(name='StormPoint'):
-            print(f'Starting on point {pt.OBJECTID}')
+            # print(f'Starting on point {pt.OBJECTID}')
             if pt.OBJECTID in self.G:
                 continue
             if pt.IS_SOURCE:
                 # is an outlet point, may bring flow into the catchment
                 self.add_upstream_pts(pt)
             else:
-                print(f'Finding downstream pt for: {pt.OBJECTID}')
+                # print(f'Finding downstream pt for: {pt.OBJECTID}')
                 downstream_pt = self.find_downstream_pt(pt)
-                print(f'Downstream_pt: {downstream_pt}')
+                # print(f'Downstream_pt: {downstream_pt}')
                 if downstream_pt is not None:
                     downstream_pts.append(downstream_pt)
 
@@ -517,4 +546,4 @@ class Network:
                     'contextily basemap:', e
                 )
 
-        plt.show()
+        # plt.show()
