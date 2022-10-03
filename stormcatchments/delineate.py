@@ -86,7 +86,7 @@ class Delineate:
       )
     
     pt_coords = pts['geometry'].tolist()
-    
+
     return
 
 
@@ -99,13 +99,14 @@ class Delineate:
 
     while True:
       outlet_pts = self.net.get_outlet_points(catchment)
-      if outlet_pts is not None:
+      print(outlet_pts)
+      if not outlet_pts.empty:
         outlet_catchments = self.delineate_points(outlet_pts, how='outlet')
         catchment = gpd.overlay(catchment, outlet_catchments, how='difference')
         catchment = catchment.dissolve()
 
       inlet_pts = self.net.get_inlet_points(catchment)
-      if inlet_pts is not None:
+      if not inlet_pts.empty:
         inlet_catchments = self.delineate_points(inlet_pts, how='inlet')
         catchment = gpd.overlay(catchment, inlet_catchments, how='union')
         catchment = catchment.dissolve()
