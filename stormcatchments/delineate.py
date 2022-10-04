@@ -1,11 +1,8 @@
 import copy
-# import fiona
-# from fiona.crs import from_epsg
 import geopandas as gpd
 import numpy as np
 import pysheds
-from pysheds.grid import Grid
-from shapely.geometry import mapping, Polygon
+from shapely.geometry import Polygon
 
 from .network import Network
 
@@ -32,7 +29,7 @@ class Delineate:
     fdir: pysheds.sview.Raster
       A pysheds flow direction raster
 
-    grid_epsg: None | int
+    grid_epsg: int
       EPSG code for the CRS of the DEM
     '''
     self.net = network
@@ -42,8 +39,8 @@ class Delineate:
     self.grid_epsg = grid_epsg
 
   def get_catchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoDataFrame:
-    """
-    Delineate catchment using PySheds
+    '''
+    Delineate catchment using pysheds
 
     Parameters
     ----------
@@ -55,9 +52,9 @@ class Delineate:
     
     Returns
     -------
-    list of shapely.Polygon objects
-    
-    """
+    catchment: gpd.GeoDataFrame
+      A GeoDataFrame containing the newly delineated catchment polygon
+    '''
     # create a deep copy of the grid to not manipulate original grid
     grid = copy.deepcopy(self.grid)
     x, y = pour_pt
@@ -79,15 +76,30 @@ class Delineate:
     )
 
   def delineate_points(
-    self, pts: gpd.GeoDataFrame, delineated_oids: set, how: str
+    self, pts: gpd.GeoDataFrame, delineated_oids: set
   ) -> tuple([gpd.GeoDataFrame, set]):
     '''
     Delineate catchments for a subset of infrastructure points
+
+    Parameters
+    ----------
+    pts: gpd.GeoDataFrame
+      Points to delineate catchments for
+    
+    delineated_oids: set
+      A set of the OBJECTID (indicies) of point that have already been delineated. These
+      points may or may not lie spatially within the catchment because snapping to the
+      flow accumulation raster may shift their location
+
+    Returns
+    -------
+    catchments: gpd.GeoDataFrame
+      The newly delineated catchment for all the provided points, or an empty
+      GeoDataFrame if the provided points have already been delineated
+    
+    delineated_oids: set
+      (Same as Parameter delineated_oids, see above)
     '''
-    if how not in ['inlet', 'outlet']:
-      raise ValueError(
-        f'"{how}" is an invalid option for "how", must be "inlet" or "outlet"'
-      )
     catchments = gpd.GeoDataFrame()
 
     for pt in pts.itertuples():
@@ -106,7 +118,21 @@ class Delineate:
 
   def get_stormcatchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoDataFrame:
     '''
-    Delineate a stormcatchment
+    Iteratively delineate a stormcatchment. pysheds does the delineation work and
+    the network module provides the stormwater infrastructure networking
+
+    Parameters
+    ----------
+    pour_pt: tuple
+      An (x, y) coordinate pair, with the same coordinate system as the grid
+
+    acc_thresh: int=1000
+      The minimum accumulation threshold used during pour point snapping
+    
+    Returns
+    -------
+    catchment: gpd.GeoDataFrame
+      A GeoDataFrame containing the newly delineated catchment polygon
     '''
     catchment = self.get_catchment(pour_pt, acc_thresh)
     self.net.generate_catchment_graphs(catchment)
