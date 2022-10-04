@@ -41,7 +41,7 @@ class Delineate:
     self.acc = acc
     self.grid_epsg = grid_epsg
 
-  def get_catchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoSeries:
+  def get_catchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoDataFrame:
     """
     Delineate catchment using PySheds
 
@@ -74,9 +74,11 @@ class Delineate:
         for poly_coords in all_poly_coords:
             catch_polys.append(Polygon(poly_coords))
   
-    return gpd.GeoSeries(catch_polys).set_crs(epsg=self.grid_epsg)
+    return gpd.GeoDataFrame(
+      {'geometry': gpd.GeoSeries(catch_polys).set_crs(epsg=self.grid_epsg)}
+    )
 
-  def delineate_points(self, pts: gpd.GeoDataFrame, how: str) -> list:
+  def delineate_points(self, pts: gpd.GeoDataFrame, how: str) -> gpd.GeoDataFrame:
     '''
     Delineate catchments for a subset of infrastructure points
     '''
@@ -85,12 +87,19 @@ class Delineate:
         f'"{how}" is an invalid option for "how", must be "inlet" or "outlet"'
       )
     
-    pt_coords = pts['geometry'].tolist()
+    catchments = gpd.GeoDataFrame()
+    
+    for pt_geom in pts['geometry'].tolist():
+      # if catchments.contains(pt_geom):
+      #   continue
+      # else:
+      pt_catchment = self.get_catchment((pt_geom.x, pt_geom.y))
+      catchments = catchments.append(pt_catchment)
 
-    return
+    return catchments
 
 
-  def get_stormcatchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoSeries:
+  def get_stormcatchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoDataFrame:
     '''
     Delineate a stormcatchment
     '''
@@ -99,7 +108,6 @@ class Delineate:
 
     while True:
       outlet_pts = self.net.get_outlet_points(catchment)
-      print(outlet_pts)
       if not outlet_pts.empty:
         outlet_catchments = self.delineate_points(outlet_pts, how='outlet')
         catchment = gpd.overlay(catchment, outlet_catchments, how='difference')
@@ -107,8 +115,13 @@ class Delineate:
 
       inlet_pts = self.net.get_inlet_points(catchment)
       if not inlet_pts.empty:
+        print(inlet_pts)
         inlet_catchments = self.delineate_points(inlet_pts, how='inlet')
-        catchment = gpd.overlay(catchment, inlet_catchments, how='union')
+        catchment = gpd.overlay(
+          gpd.GeoDataFrame(catchment),
+          gpd.GeoDataFrame(inlet_catchments),
+          how='union'
+        )
         catchment = catchment.dissolve()
         self.net.generate_catchment_graphs(catchment)
       
