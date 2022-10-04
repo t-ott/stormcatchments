@@ -1,5 +1,6 @@
 from collections import namedtuple
 import geopandas as gpd
+import pandas as pd
 import networkx as nx
 from typing import Optional
 from shapely.geometry import Point
@@ -61,6 +62,7 @@ class Network:
         assert 'OBJECTID' in storm_lines.columns, f'storm_lines must contain a column '\
             'named OBJECTID'
         self.lines = storm_lines
+        self.lines.set_index('OBJECTID', inplace=True)
 
         if 'OBJECTID' not in storm_pts.columns:
             raise ValueError('Parameter storm_pts must contain a column "OBJECTID"')
@@ -69,6 +71,7 @@ class Network:
                 f'type_column "{type_column}" is not a column in storm_pts'
             )
         self.pts = storm_pts
+        self.pts.set_index('OBJECTID', inplace=True)
 
         if 'IS_SINK' in storm_pts.columns:
             assert storm_pts.dtypes['IS_SINK'] == bool, 'storm_pts column "IS_SINK" ' \
@@ -123,11 +126,11 @@ class Network:
         pt: StormPoint namedtuple
         '''
         # oid will be the "name"/index of the node in the graph
-        oid = pt.OBJECTID
+        oid = pt.Index
 
         # keep all other columns from row that aren't OBJECTID in node's attributes
         pt_dict = pt._asdict()
-        del pt_dict['OBJECTID']
+        del pt_dict['Index']
 
         self.G.add_node(oid, **pt_dict)
 
@@ -139,8 +142,8 @@ class Network:
         pt_end: StormPoint namedtupe
         '''
         # connect both points 
-        pt_start_oid = pt_start.OBJECTID
-        pt_end_oid = pt_end.OBJECTID
+        pt_start_oid = pt_start.Index
+        pt_end_oid = pt_end.Index
         self.G.add_edge(pt_start_oid, pt_end_oid)
 
     def get_outlet(self, pt_oid: int) -> int:
@@ -185,8 +188,13 @@ class Network:
                 warnings.warn(
                     '_init_traverse() got multiple points, only keeping the first'
                 )
-            pt_iter = pt.itertuples(index=False, name='StormPoint')
+            pt_iter = pt.itertuples(name='StormPoint')
             pt = next(pt_iter)
+        elif type(pt) == pd.Series:
+            # convert to StormPoint namedtuple
+            field_names = self.pts.columns.to_list()
+            field_names.insert(0, 'Index')
+            pt = namedtuple('StormPoint', field_names)(pt.name, *pt)
         else:
             assert pt.__class__.__name__ == 'StormPoint', f'Expected pt to be a ' \
                 'gpd.GeoDataFrame or a StormPoint namedtuple, got a ' \
@@ -194,11 +202,11 @@ class Network:
         
         lines = self.get_lines_at_point(pt)
         if len(lines) < 1:
-            print(f'No lines connect to point with OBJECTID: {pt.OBJECTID}')
+            print(f'No lines connect to point with OBJECTID: {pt.Index}')
             return
 
-        for line in lines.itertuples(index=False, name='StormLine'):
-            line_oid = line.OBJECTID
+        for line in lines.itertuples(name='StormLine'):
+            line_oid = line.Index
             line_x, line_y = self.get_line_coords(line)
 
             # enter network traverse function, potential recursion here
@@ -319,24 +327,25 @@ class Network:
                 # of 0, then checking for membership in the graph by geometry.
 
                 # Add a point to self.pts for this vertex
-                new_oid = self.pts['OBJECTID'].max() + 1
+                new_oid = self.pts.index.max() + 1
                 new_pt = {
-                    'OBJECTID': new_oid,
                     'Type': 0,
                     'IS_SINK': False,
                     'IS_SOURCE': False,
                     'geometry': Point(x, y),
                 }
-                self.pts = self.pts.append(new_pt, ignore_index=True)
-                next_pt = self.pts[self.pts['OBJECTID']==new_oid]
-            elif len(next_pt) > 1:
-                warnings.warn(
-                    'Found more than one point at stormline vertex, only keeping '
-                    f'point with OBJECTID {next_pt.iloc[0].OBJECTID}'
-                )
-            
-            pt_iter = next_pt.itertuples(index=False, name='StormPoint')
-            next_pt = next(pt_iter)
+                self.pts.loc[new_oid] = new_pt
+                new_pt['Index'] = new_oid
+                # convert this to StormPoint namedtuple
+                next_pt = namedtuple('StormPoint', new_pt.keys())(*new_pt.values())
+            elif len(next_pt) > 0:
+                if len(next_pt) > 1:
+                    warnings.warn(
+                        'Found more than one point at stormline vertex, only keeping '
+                        f'the first point with OBJECTID {next_pt.index.min()}'
+                    )
+                pt_iter = next_pt.itertuples(name='StormPoint')
+                next_pt = next(pt_iter)
 
             if traverse_upstream:
                 # add new node and edge from next_pt -> current_pt
@@ -358,10 +367,10 @@ class Network:
                 # find next line(s)
                 lines = self.get_lines_at_point(next_pt)
                 # but get rid of current line, since we already traversed it
-                lines = lines[lines['OBJECTID'] != line_oid]
+                lines = lines.drop(line_oid)
 
-                for line in lines.itertuples(index=False, name='StormLine'):
-                    line_oid = line.OBJECTID
+                for line in lines.itertuples(name='StormLine'):
+                    line_oid = line.Index
                     line_x, line_y = self.get_line_coords(line)
 
                     # TODO: What would happen if a newtork had multiple outlet points?
@@ -399,15 +408,15 @@ class Network:
 
         catchment_pts = gpd.clip(self.pts, catchment)
         sink_pts = catchment_pts[catchment_pts['IS_SINK']==True]
-        sink_pt_oids = sink_pts['OBJECTID'].tolist()
+        sink_pt_oids = sink_pts.index.tolist()
 
         oids_to_remove = []
         for sink_pt_oid in sink_pt_oids:
             outlet_oid = self.get_outlet(sink_pt_oid)
-            if outlet_oid not in catchment_pts['OBJECTID'].values:
+            if outlet_oid not in catchment_pts.index:
                 oids_to_remove.append(sink_pt_oid)
         
-        return self.pts[self.pts['OBJECTID'].isin(oids_to_remove)]
+        return self.pts.loc[oids_to_remove]
 
     def get_inlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
         '''
@@ -419,7 +428,7 @@ class Network:
 
         catchment_pts = gpd.clip(self.pts, catchment)
         source_pts = catchment_pts[catchment_pts['IS_SOURCE']==True]
-        source_pt_oids = source_pts['OBJECTID'].tolist()
+        source_pt_oids = source_pts.index.tolist()
         
         # get subgraphs for each source_pt
         source_subGs = []
@@ -433,7 +442,7 @@ class Network:
         for subG in source_subGs:
             for node in subG:
                 # print(node)
-                if node in catchment_pts['OBJECTID'].values:
+                if node in catchment_pts.index:
                     continue
 
                 # TODO: Need to lookup value for 'IS_SINK' based on the OBJECTID for
@@ -442,7 +451,7 @@ class Network:
                 if self.pts.at[node, 'IS_SINK']:
                     oids_to_add.append(node)
         
-        return self.pts[self.pts['OBJECTID'].isin(oids_to_add)]
+        return self.pts.loc[oids_to_add]
      
     def generate_catchment_graphs(self, catchment: gpd.GeoSeries) -> None:
         '''
@@ -464,7 +473,7 @@ class Network:
         downstream_pts = []
         for pt in pts.itertuples(name='StormPoint'):
             # print(f'Starting on point {pt.OBJECTID}')
-            if pt.OBJECTID in self.G:
+            if pt.Index in self.G:
                 continue
             if pt.IS_SOURCE:
                 # is an outlet point, may bring flow into the catchment
@@ -479,7 +488,7 @@ class Network:
         # Traverse all the downstream points upstream to build their subgraphs
         for pt in downstream_pts:
             # Skip if already in a graph
-            if pt.OBJECTID in self.G:
+            if pt.Index in self.G:
                 continue
             else:
                 self.add_upstream_pts(pt)
