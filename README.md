@@ -23,18 +23,17 @@ grid, fdir, acc = terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
 ```
 ### Read infrastructure data
 ```python
-import geopandas as gpd
-
 storm_lines = gpd.read_file('tests/test_data/johnson_vt/storm_lines.shp')
 storm_pts = gpd.read_file('tests/test_data/johnson_vt/storm_pts.shp')
 ```
-### Initialize Network object
+### Initialize Network and Delineate objects
 ```python
 net = network.Network(storm_lines, storm_pts)
+delin = delineate.Delineate(net, grid, fdir, acc, 6589)
 ```
 ### Delineate a stormcatchment
 ```python
-# grid (x, y) coordinates
+# (x, y) coordinates in same CRS as grid
 pour_pt = (484636, 237170)
-stormcatchment = delineate.get_stormcatchment(pour_pt)
+stormcatchment = delin.get_stormcatchment(pour_pt)
 ```
