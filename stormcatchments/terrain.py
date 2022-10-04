@@ -48,8 +48,8 @@ def mosaic_to_new_raster(raster_paths: list, out_path: str):
   # get and update metadata for mosaic raster, write to dis
   out_meta = tiles[0].meta.copy()
   out_meta.update({
-      'width': mosaic.shape[1],
-      'height': mosaic.shape[2],
+      'width': mosaic.shape[2],
+      'height': mosaic.shape[1],
       'transform': transform
   })
   with rasterio.open(out_path, 'w', **out_meta) as dst:
