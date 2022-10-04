@@ -36,6 +36,7 @@ class Network:
         self,
         storm_lines: gpd.GeoDataFrame,
         storm_pts: gpd.GeoDataFrame,
+        index_column: str='OBJECTID',
         type_column: str='Type',
         sink_types: list=SINK_TYPES_VT,
         source_types: list=SOURCE_TYPES_VT,
@@ -47,6 +48,8 @@ class Network:
             All the stormwater infrastructure line features within the area of interest
         storm_pts : gpd.GeoDataFrame
             All the stormwater infrastructure points features within the area of interest
+        index_column: str
+            Column name in both storm_lines and storm_pts 
         type_column: str
             Column in storm_pts GeoDataFrame that represents the type of each point
             (e.g., catchbasins, outfalls, culverts)
@@ -59,38 +62,47 @@ class Network:
         '''
         # print('Initializing Network...')
 
-        assert 'OBJECTID' in storm_lines.columns, f'storm_lines must contain a column '\
-            'named OBJECTID'
+        if index_column not in storm_lines.columns:
+            raise ValueError(
+                'storm_lines does not contain a column with provided index column '
+                'name: {index_column}'
+            )
         self.lines = storm_lines
-        self.lines.set_index('OBJECTID', inplace=True)
+        self.lines.set_index(index_column, inplace=True)
 
-        if 'OBJECTID' not in storm_pts.columns:
-            raise ValueError('Parameter storm_pts must contain a column "OBJECTID"')
+        if index_column not in storm_pts.columns:
+            raise ValueError(
+                'storm_pts does not contain a column with provided index column '
+                f'name: {index_column}'
+            )
         elif type_column not in storm_pts.columns:
             raise ValueError(
-                f'type_column "{type_column}" is not a column in storm_pts'
+                'storm_pts does not contain a column with the provided type column '
+                f'name: {type_column}'
             )
         self.pts = storm_pts
-        self.pts.set_index('OBJECTID', inplace=True)
+        self.pts.set_index(index_column, inplace=True)
 
         if 'IS_SINK' in storm_pts.columns:
-            assert storm_pts.dtypes['IS_SINK'] == bool, 'storm_pts column "IS_SINK" ' \
-                'must be bool dtype'
+            if storm_pts.dtypes['IS_SINK'] != bool:
+                raise ValueError('storm_pts column "IS_SINK" must be bool dtype')
         else:
             self.pts['IS_SINK'] = self.pts[type_column].apply(
                 lambda x: True if x in sink_types else False
             )
 
         if 'IS_SOURCE' in storm_pts.columns:
-            assert storm_pts.dtypes['IS_SOURCE'] == bool, 'storm_pts column ' \
-                '"IS_SOURCE" must be bool dtype'
+            if storm_pts.dtypes['IS_SOURCE'] != bool:
+                raise ValueError('storm_pts column "IS_SOURCE" must be bool dtype')
         else:
             self.pts['IS_SOURCE'] = self.pts[type_column].apply(
                 lambda x: True if x in source_types else False
             )
 
-        assert self.pts.crs == self.lines.crs, f'Coordinate reference systems of ' \
-            'point and line datasets must match'
+        if self.pts.crs != self.lines.crs:
+            raise ValueError(
+                'Coordinate reference systems of point and line datasets must match'
+            )
         self.crs = self.pts.crs
 
         # Initialize empty Directional Graph, can consist many disconnected subgraphs
@@ -373,7 +385,7 @@ class Network:
                     line_oid = line.Index
                     line_x, line_y = self.get_line_coords(line)
 
-                    # TODO: What would happen if a newtork had multiple outlet points?
+                    # TODO: What would happen if a network had multiple outlet points?
                     # only the last outlet point found would be returned it seems. is
                     # this a problem?
 
@@ -383,7 +395,6 @@ class Network:
                     )
                     if return_pt is not None:
                         return return_pt
-                    # print(return_val)
     
             else:
                 # recursively call search
@@ -441,13 +452,8 @@ class Network:
         oids_to_add = []
         for subG in source_subGs:
             for node in subG:
-                # print(node)
                 if node in catchment_pts.index:
                     continue
-
-                # TODO: Need to lookup value for 'IS_SINK' based on the OBJECTID for
-                # node. This could be done much more easily if the index of self.pts was
-                # set to OBJECTID!
                 if self.pts.at[node, 'IS_SINK']:
                     oids_to_add.append(node)
         
@@ -472,16 +478,13 @@ class Network:
         # Look for all downstream points connected to this catchment's infrastructure
         downstream_pts = []
         for pt in pts.itertuples(name='StormPoint'):
-            # print(f'Starting on point {pt.OBJECTID}')
             if pt.Index in self.G:
                 continue
             if pt.IS_SOURCE:
                 # is an outlet point, may bring flow into the catchment
                 self.add_upstream_pts(pt)
             else:
-                # print(f'Finding downstream pt for: {pt.OBJECTID}')
                 downstream_pt = self.find_downstream_pt(pt)
-                # print(f'Downstream_pt: {downstream_pt}')
                 if downstream_pt is not None:
                     downstream_pts.append(downstream_pt)
 
@@ -493,7 +496,7 @@ class Network:
             else:
                 self.add_upstream_pts(pt)
 
-    def draw_G(self, subG_node: int=None, ax=None, add_basemap=True):
+    def draw_G(self, subG_node: int=None, ax=None, add_basemap=True) -> 'plt.axes':
         '''
         Draw the Graph using the geographic coordinates of each node
 
@@ -539,7 +542,7 @@ class Network:
             nx.get_node_attributes(self.G, 'geometry').items()
         ])
         pt_type = np.array([
-            pt_type for pt, pt_type in nx.get_node_attributes(self.G, 'Type').items()
+            pt_type for _, pt_type in nx.get_node_attributes(self.G, 'Type').items()
         ])
         # Plot nodes 
         ax.scatter(coords[:, 0], coords[:, 1], c=pt_type, marker='s', s=5, zorder=2)
@@ -555,4 +558,4 @@ class Network:
                     'contextily basemap:', e
                 )
 
-        # plt.show()
+        return ax

@@ -1,7 +1,7 @@
 import copy
 import geopandas as gpd
 import numpy as np
-import pysheds
+import pysheds, pysheds.sgrid
 from shapely.geometry import Polygon
 
 from .network import Network
@@ -143,7 +143,7 @@ class Delineate:
       outlet_pts = self.net.get_outlet_points(catchment)
       if not outlet_pts.empty:
         outlet_catchments, delineated_oids = self.delineate_points(
-          outlet_pts, delineated_oids, how='outlet'
+          outlet_pts, delineated_oids
         )
         if not outlet_catchments.empty:
           catchment = gpd.overlay(
@@ -157,7 +157,7 @@ class Delineate:
       inlet_pts = self.net.get_inlet_points(catchment)
       if not inlet_pts.empty:
         inlet_catchments, delineated_oids = self.delineate_points(
-          inlet_pts, delineated_oids, how='inlet'
+          inlet_pts, delineated_oids
         )
         if not inlet_catchments.empty:
           catchment = gpd.overlay(
