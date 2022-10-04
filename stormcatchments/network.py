@@ -403,16 +403,16 @@ class Network:
                 )
                 # TODO: Conditionally return a value if return_pt is not None?
 
-    def get_outlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
+    def get_outlet_points(self, catchment: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         '''
         Get GeoDataFrame of all the infrastructure points within the catchment that
         bring flow out of the current catchment. The catchments for these points will
-        need to be removed from current catchment
+        need to be removed from current catchment.
 
         Parameters
         ----------
-        catchment: gpd.GeoSeries
-            GeoPandas GeoSeries containing the geometry for the current catchment
+        catchment: gpd.GeoDataFrame
+            GeoDataFrame containing the current catchment polygon
         '''
         if catchment.crs != self.pts.crs:
             catchment = catchment.to_crs(crs=self.pts.crs)
@@ -429,10 +429,15 @@ class Network:
         
         return self.pts.loc[oids_to_remove]
 
-    def get_inlet_points(self, catchment: gpd.GeoSeries) -> gpd.GeoDataFrame:
+    def get_inlet_points(self, catchment: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         '''
         Get GeoDataFrame of all the infrastructure points outside the catchment that
         bring flow into the catchment.
+
+        Parameters
+        ----------
+        catchment: gpd.GeoDataFrame
+            GeoDataFrame containing the current catchment polygon
         '''
         if catchment.crs != self.pts.crs:
             catchment = catchment.to_crs(crs=self.pts.crs)
@@ -459,7 +464,7 @@ class Network:
         
         return self.pts.loc[oids_to_add]
      
-    def generate_catchment_graphs(self, catchment: gpd.GeoSeries) -> None:
+    def generate_catchment_graphs(self, catchment: gpd.GeoDataFrame) -> None:
         '''
         Generate graph representations of all infrastructure networks that are within or
         partially within a catchment.
