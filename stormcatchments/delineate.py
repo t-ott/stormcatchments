@@ -1,6 +1,6 @@
 import copy
-import fiona
-from fiona.crs import from_epsg
+# import fiona
+# from fiona.crs import from_epsg
 import geopandas as gpd
 import numpy as np
 import pysheds
@@ -78,7 +78,9 @@ class Delineate:
       {'geometry': gpd.GeoSeries(catch_polys).set_crs(epsg=self.grid_epsg)}
     )
 
-  def delineate_points(self, pts: gpd.GeoDataFrame, how: str) -> gpd.GeoDataFrame:
+  def delineate_points(
+    self, pts: gpd.GeoDataFrame, delineated_oids: set, how: str
+  ) -> tuple([gpd.GeoDataFrame, set]):
     '''
     Delineate catchments for a subset of infrastructure points
     '''
@@ -86,17 +88,20 @@ class Delineate:
       raise ValueError(
         f'"{how}" is an invalid option for "how", must be "inlet" or "outlet"'
       )
-    
     catchments = gpd.GeoDataFrame()
-    
-    for pt_geom in pts['geometry'].tolist():
-      # if catchments.contains(pt_geom):
-      #   continue
-      # else:
-      pt_catchment = self.get_catchment((pt_geom.x, pt_geom.y))
-      catchments = catchments.append(pt_catchment)
 
-    return catchments
+    for pt in pts.itertuples():
+      if pt.Index in delineated_oids:
+        continue
+      else:
+        delineated_oids.add(pt.Index)
+        pt_catchment = self.get_catchment((pt.geometry.x, pt.geometry.y))
+        catchments = catchments.append(pt_catchment)
+
+    if not catchments.empty:
+      catchments = catchments.set_crs(epsg=self.grid_epsg)
+
+    return catchments, delineated_oids
 
 
   def get_stormcatchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoDataFrame:
@@ -106,45 +111,40 @@ class Delineate:
     catchment = self.get_catchment(pour_pt, acc_thresh)
     self.net.generate_catchment_graphs(catchment)
 
+    delineated_oids = set()
+
     while True:
       outlet_pts = self.net.get_outlet_points(catchment)
       if not outlet_pts.empty:
-        outlet_catchments = self.delineate_points(outlet_pts, how='outlet')
-        catchment = gpd.overlay(catchment, outlet_catchments, how='difference')
-        catchment = catchment.dissolve()
+        outlet_catchments, delineated_oids = self.delineate_points(
+          outlet_pts, delineated_oids, how='outlet'
+        )
+        if not outlet_catchments.empty:
+          catchment = gpd.overlay(
+            catchment, outlet_catchments, how='difference'
+          ).set_crs(epsg=self.grid_epsg)
+          catchment = catchment.dissolve()
+        else:
+          # empty outlet_pts
+          outlet_pts = gpd.GeoDataFrame()
 
       inlet_pts = self.net.get_inlet_points(catchment)
       if not inlet_pts.empty:
-        print(inlet_pts)
-        inlet_catchments = self.delineate_points(inlet_pts, how='inlet')
-        catchment = gpd.overlay(
-          gpd.GeoDataFrame(catchment),
-          gpd.GeoDataFrame(inlet_catchments),
-          how='union'
+        inlet_catchments, delineated_oids = self.delineate_points(
+          inlet_pts, delineated_oids, how='inlet'
         )
-        catchment = catchment.dissolve()
-        self.net.generate_catchment_graphs(catchment)
+        if not inlet_catchments.empty:
+          catchment = gpd.overlay(
+            catchment, inlet_catchments, how='union'
+          ).set_crs(epsg=self.grid_epsg)
+          catchment = catchment.dissolve()
+          self.net.generate_catchment_graphs(catchment)
+        else:
+          # empty inlet_pts
+          inlet_pts = gpd.GeoDataFrame()
       
-      if outlet_pts is None and inlet_pts is None:
-        # Stormcatchment complete
+      if outlet_pts.empty and inlet_pts.empty:
+        # stormcatchment complete
         break
 
     return catchment
-
-  def poly_to_shp(self, poly, shp_path, epsg):
-    schema = {
-        'geometry': 'Polygon',
-        'properties': {'id': 'int'}
-    }
-    
-    with fiona.open(
-        shp_path,
-        'w',
-        driver='ESRI Shapefile',
-        crs=from_epsg(epsg),
-        schema=schema
-    ) as shp:
-        shp.write({
-            'geometry': mapping(poly),
-            'properties': {'id': 0}
-        })
