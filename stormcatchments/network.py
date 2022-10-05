@@ -108,7 +108,7 @@ class Network:
         # Initialize empty Directional Graph, can consist many disconnected subgraphs
         self.G = nx.DiGraph()
     
-    def get_lines_at_point(self, pt):
+    def get_lines_at_point(self, pt) -> gpd.GeoDataFrame:
         '''
         Return any infrastructure lines that touch this point
 
@@ -126,15 +126,19 @@ class Network:
 
         return self.lines.cx[x, y]
     
-    def get_line_coords(self, line):
+    def get_line_coords(self, line) -> tuple:
         assert line.__class__.__name__ == 'StormLine', f'get_line_coords() expected ' \
             f'StormLine namedtuple, got {line.__class__.__name__}'
 
         line_x, line_y = line.geometry.coords.xy
         return line_x, line_y
 
-    def add_infra_node(self, pt):
+    def add_infra_node(self, pt) -> None:
         '''
+        Add a point as a node in the graph
+
+        Parameters
+        ----------
         pt: StormPoint namedtuple
         '''
         # oid will be the "name"/index of the node in the graph
@@ -146,7 +150,7 @@ class Network:
 
         self.G.add_node(oid, **pt_dict)
 
-    def add_infra_edge(self, pt_start, pt_end):
+    def add_infra_edge(self, pt_start, pt_end) -> None:
         '''
         Parameters
         ----------
@@ -438,6 +442,12 @@ class Network:
         ----------
         catchment: gpd.GeoDataFrame
             GeoDataFrame containing the current catchment polygon
+
+        Returns
+        -------
+        inlet_pts: gpd.GeoDataFrame
+            GeoDataFrame containing all the points outside the catchment that bring flow
+            into the catchment
         '''
         if catchment.crs != self.pts.crs:
             catchment = catchment.to_crs(crs=self.pts.crs)
