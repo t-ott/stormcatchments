@@ -3,7 +3,7 @@ import geopandas as gpd
 import pandas as pd
 import networkx as nx
 from typing import Optional
-from shapely.geometry import Point
+from shapely.geometry import MultiPoint, Point
 import warnings
 
 SINK_TYPES_VT = [   
@@ -107,6 +107,36 @@ class Network:
 
         # Initialize empty Directional Graph, can consist many disconnected subgraphs
         self.G = nx.DiGraph()
+
+    def get_point_coords(self, pt) -> tuple:
+        '''
+        Get and x, y coordinate tuple from a StormPoint
+
+        Parameters
+        ----------
+        pt : StormPoint (named tuple)
+            The current stormwater infrastructure point feature
+        '''
+        if type(pt.geometry) == Point:
+            x = pt.geometry.x
+            y = pt.geometry.y
+        elif type(pt.geometry) == MultiPoint:
+            # warnings.warn(
+            #     f'Point {pt.Index} has MultiPoint geometry, selecting coords for first '
+            #     'point'
+            # )
+            if len(pt.geometry.geoms) > 1:
+                warnings.warn(
+                    f'Point {pt.Index} has MultiPoint geometry with multiple point '
+                    'coordinates, only selecting the first'
+            )
+            x = pt.geometry.geoms[0].x
+            y = pt.geometry.geoms[0].y
+        else:
+            raise ValueError(
+                f'Failed to get coords for Point with geometry type: {type(pt.geometry)}'
+            )
+        return x, y
     
     def get_lines_at_point(self, pt) -> gpd.GeoDataFrame:
         '''
@@ -120,10 +150,7 @@ class Network:
         '''
         assert pt.__class__.__name__ == 'StormPoint', f'Expected a "StormPoint" '\
             f'namedtuple, but got {pt.__class__.__name__}'
-        
-        x = pt.geometry.x
-        y = pt.geometry.y
-
+        x, y = self.get_point_coords(pt)
         return self.lines.cx[x, y]
     
     def get_line_coords(self, line) -> tuple:
@@ -147,6 +174,11 @@ class Network:
         # keep all other columns from row that aren't OBJECTID in node's attributes
         pt_dict = pt._asdict()
         del pt_dict['Index']
+
+        if type(pt_dict['geometry']) == MultiPoint:
+            pt_dict['geometry'] = Point(
+                pt_dict['geometry'].geoms[0].x, pt_dict['geometry'].geoms[0].y
+            )
 
         self.G.add_node(oid, **pt_dict)
 
@@ -185,14 +217,14 @@ class Network:
         return outlets[0]
 
     def add_upstream_pts(self, downstream_pt) -> None:
-        self._init_traverse(downstream_pt, True)
+        self.init_traverse(downstream_pt, True)
         return
 
     def find_downstream_pt(self, pt) -> Optional[gpd.GeoDataFrame]:
-        downsteam_pt = self._init_traverse(pt, False)
+        downsteam_pt = self.init_traverse(pt, False)
         return downsteam_pt
 
-    def _init_traverse(self, pt, traverse_upstream: bool) -> Optional[gpd.GeoDataFrame]:
+    def init_traverse(self, pt, traverse_upstream: bool) -> Optional[gpd.GeoDataFrame]:
         '''
         pt: gpd.GeoDataFrame | StormPoint namedtuple
         '''
@@ -226,7 +258,7 @@ class Network:
             line_x, line_y = self.get_line_coords(line)
 
             # enter network traverse function, potential recursion here
-            return_pt = self._traverse(
+            return_pt = self.traverse(
                 pt, line_oid, (line_x, line_y), True, traverse_upstream
             )
             
@@ -237,7 +269,7 @@ class Network:
         return return_pt
 
 
-    def _traverse(
+    def traverse(
         self,
         current_pt,
         line_oid: int,
@@ -292,8 +324,7 @@ class Network:
 
         if new_line:
             # order the line verticies so that we can iterate upstream 
-            current_pt_x = current_pt.geometry.x
-            current_pt_y = current_pt.geometry.y
+            current_pt_x, current_pt_y = self.get_point_coords(current_pt)
 
             assert (current_pt_x in line_x) and (current_pt_y in line_y), 'Could not ' \
                 'find current point within the line coordinates'
@@ -394,7 +425,7 @@ class Network:
                     # this a problem?
 
                     # recursively call search on each of these new lines
-                    return_pt = self._traverse(
+                    return_pt = self.traverse(
                         next_pt, line_oid, (line_x, line_y), True, traverse_upstream
                     )
                     if return_pt is not None:
@@ -402,7 +433,7 @@ class Network:
     
             else:
                 # recursively call search
-                self._traverse(
+                self.traverse(
                     next_pt, line_oid, (line_x, line_y), False, traverse_upstream
                 )
                 # TODO: Conditionally return a value if return_pt is not None?
@@ -553,7 +584,7 @@ class Network:
             )
 
         coords = np.array([
-            [geom.x, geom.y] for pt, geom in 
+            [geom.x, geom.y] for _, geom in 
             nx.get_node_attributes(self.G, 'geometry').items()
         ])
         pt_type = np.array([
