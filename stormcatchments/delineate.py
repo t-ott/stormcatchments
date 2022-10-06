@@ -4,7 +4,7 @@ import numpy as np
 import pysheds, pysheds.sgrid
 from shapely.geometry import Polygon
 
-from .network import Network
+from stormcatchments.network import Network
 
 class Delineate:
   def __init__(
@@ -134,8 +134,13 @@ class Delineate:
     catchment: gpd.GeoDataFrame
       A GeoDataFrame containing the newly delineated catchment polygon
     '''
+    import matplotlib.pyplot as plt
+
     catchment = self.get_catchment(pour_pt, acc_thresh)
     self.net.generate_catchment_graphs(catchment)
+
+    self.net.draw_G()
+    plt.show()
 
     delineated_oids = set()
 
