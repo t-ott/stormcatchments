@@ -121,10 +121,6 @@ class Network:
             x = pt.geometry.x
             y = pt.geometry.y
         elif type(pt.geometry) == MultiPoint:
-            # warnings.warn(
-            #     f'Point {pt.Index} has MultiPoint geometry, selecting coords for first '
-            #     'point'
-            # )
             if len(pt.geometry.geoms) > 1:
                 warnings.warn(
                     f'Point {pt.Index} has MultiPoint geometry with multiple point '
@@ -194,7 +190,7 @@ class Network:
         pt_end_oid = pt_end.Index
         self.G.add_edge(pt_start_oid, pt_end_oid)
 
-    def get_outlet(self, pt_oid: int) -> int:
+    def get_outlet(self, pt_oid: int) -> Optional[int]:
         '''
         Get OBJECTID(s) of the outlet(s) for a given storm_pt which exists in the graph.
         Ideally this return be single outlet point.
@@ -204,7 +200,11 @@ class Network:
         pt_oid: int
             OBJECTID of point
         '''
-        assert pt_oid in self.G, f'The node "{pt_oid}" does not exist within the graph'
+        # assert pt_oid in self.G, f'The node "{pt_oid}" does not exist within the graph'
+        if pt_oid not in self.G:
+            print(f'The point {pt_oid} is not a node in the graph')
+            return
+
         subG = nx.dfs_tree(self.G, pt_oid)
         outlets = [oid for oid, deg in subG.out_degree() if deg == 0]
         if len(outlets) == 0:
@@ -459,7 +459,7 @@ class Network:
         oids_to_remove = []
         for sink_pt_oid in sink_pt_oids:
             outlet_oid = self.get_outlet(sink_pt_oid)
-            if outlet_oid not in catchment_pts.index:
+            if outlet_oid is not None and outlet_oid not in catchment_pts.index:
                 oids_to_remove.append(sink_pt_oid)
         
         return self.pts.loc[oids_to_remove]
