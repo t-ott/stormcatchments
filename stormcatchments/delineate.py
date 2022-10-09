@@ -103,7 +103,7 @@ class Delineate:
     pour_pt: tuple
       An (x, y) coordinate pair, with the same coordinate system as the grid
 
-    acc_thresh: int=1000
+    acc_thresh: int (default 100)
       The minimum accumulation threshold used during pour point snapping
     
     Returns

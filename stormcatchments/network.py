@@ -267,7 +267,6 @@ class Network:
 
         return return_pt
 
-
     def traverse(
         self,
         current_pt: 'StormPoint',
@@ -547,13 +546,13 @@ class Network:
 
         Parameters
         ----------
-        subG_node: int
+        subG_node: int (default None)
             Name (OBJECTID) of node for which only its connected nodes will be drawn.
             Any nodes without a path to subG_node will therefore not be drawn.
         
-        ax: plt.axes | None
+        ax: plt.axes | None (default None)
         
-        add_basemap: bool
+        add_basemap: bool (deafult True)
             Option to add a contextily basemap to the plot
         '''
         import matplotlib.pyplot as plt
