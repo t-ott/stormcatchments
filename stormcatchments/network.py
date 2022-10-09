@@ -178,7 +178,7 @@ class Network:
 
         self.G.add_node(oid, **pt_dict)
 
-    def add_infra_edge(self, pt_start, pt_end) -> None:
+    def add_infra_edge(self, pt_start: 'StormPoint', pt_end: 'StormPoint') -> None:
         '''
         Parameters
         ----------
@@ -200,7 +200,6 @@ class Network:
         pt_oid: int
             OBJECTID of point
         '''
-        # assert pt_oid in self.G, f'The node "{pt_oid}" does not exist within the graph'
         if pt_oid not in self.G:
             print(f'The point {pt_oid} is not a node in the graph')
             return
@@ -271,7 +270,7 @@ class Network:
 
     def traverse(
         self,
-        current_pt,
+        current_pt: 'StormPoint',
         line_oid: int,
         line_coords: tuple,
         new_line: bool,
