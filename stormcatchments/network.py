@@ -117,10 +117,10 @@ class Network:
         pt : StormPoint (named tuple)
             The current stormwater infrastructure point feature
         '''
-        if type(pt.geometry) == Point:
+        if isinstance(pt.geometry, Point):
             x = pt.geometry.x
             y = pt.geometry.y
-        elif type(pt.geometry) == MultiPoint:
+        elif isinstance(pt.geometry, MultiPoint):
             if len(pt.geometry.geoms) > 1:
                 warnings.warn(
                     f'Point {pt.Index} has MultiPoint geometry with multiple point '
@@ -171,7 +171,7 @@ class Network:
         pt_dict = pt._asdict()
         del pt_dict['Index']
 
-        if type(pt_dict['geometry']) == MultiPoint:
+        if isinstance(pt_dict['geometry'], MultiPoint):
             pt_dict['geometry'] = Point(
                 pt_dict['geometry'].geoms[0].x, pt_dict['geometry'].geoms[0].y
             )
@@ -230,15 +230,15 @@ class Network:
         '''
         # TODO: Potentially just work this function into the main _traverse() function?
         # It seems unnecessary to seperate them?
-
-        if type(pt) == gpd.GeoDataFrame:
+        
+        if isinstance(pt, gpd.GeoDataFrame):
             if len(pt) > 1:
                 warnings.warn(
                     '_init_traverse() got multiple points, only keeping the first'
                 )
             pt_iter = pt.itertuples(name='StormPoint')
             pt = next(pt_iter)
-        elif type(pt) == pd.Series:
+        elif isinstance(pt, pd.Series):
             # convert to StormPoint namedtuple
             field_names = self.pts.columns.to_list()
             field_names.insert(0, 'Index')
