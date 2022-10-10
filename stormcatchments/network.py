@@ -240,6 +240,11 @@ class Network:
 
     def resolve_direction(self, source_pt) -> None:
         source_pt = self.to_StormPoint(source_pt)
+        if not source_pt.IS_SOURCE:
+            raise ValueError(
+                f'Cannot resolve direction from point with Index {source_pt.Index} as '
+                f'it is not marked as a flow source, see "IS_SOURCE": {source_pt}'
+            )
         v_x = source_pt.geometry.x
         v_y = source_pt.geometry.y
 
@@ -371,42 +376,29 @@ class Network:
         
         return self.pts.loc[oids_to_add]
      
-    def generate_catchment_graphs(self, catchment: gpd.GeoDataFrame) -> None:
+    def resolve_catchment_graph(self, catchment: gpd.GeoDataFrame) -> None:
         '''
-        Generate graph representations of all infrastructure networks that are within or
-        partially within a catchment.
+        Resolve graph representations of all infrastructure networks that are within or
+        partially within a catchment
 
         Parameters
         ----------
-        catchment: gpd.GeoSeries
-            A GeoPandas GeoSeries with the catchment geometry
+        catchment: gpd.GeoDataFrame
+            A GeoPandas GeoDataFrame with the catchment polygon
         '''
         # ensure CRS match
         if catchment.crs != self.pts.crs:
             catchment = catchment.to_crs(crs=self.pts.crs)
 
         pts = gpd.clip(self.pts, catchment)
-        
-        # Look for all downstream points connected to this catchment's infrastructure
-        downstream_pts = []
         for pt in pts.itertuples(name='StormPoint'):
-            if pt.Index in self.G:
-                continue
             if pt.IS_SOURCE:
                 # is an outlet point, may bring flow into the catchment
-                self.add_upstream_pts(pt)
+                self.resolve_direction(pt)
             else:
+                # find this point's downstream_pt and resolve directions from there
                 downstream_pt = self.find_downstream_pt(pt)
-                if downstream_pt is not None:
-                    downstream_pts.append(downstream_pt)
-
-        # Traverse all the downstream points upstream to build their subgraphs
-        for pt in downstream_pts:
-            # Skip if already in a graph
-            if pt.Index in self.G:
-                continue
-            else:
-                self.add_upstream_pts(pt)
+                self.resolve_direction(downstream_pt)
 
     def draw_G(self, subG_node: int=None, ax=None, add_basemap=True) -> 'plt.axes':
         '''
