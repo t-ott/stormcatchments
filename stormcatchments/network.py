@@ -23,9 +23,9 @@ def get_point_coords(pt_geom, decimals: int=None) -> tuple:
     Parameters
     ----------
     pt_geom: Point | MultiPoint
-        shapely geometry object
+        shapely geometry object containing a point coordinate
     decimals: int (default None)
-        Decimals to round coordinates to
+        Number of decimals to round coordinates to
     '''
     if isinstance(pt_geom, Point):
         x = pt_geom.x
@@ -58,9 +58,11 @@ class Network:
     -----------
     lines : gpd.GeoDataFrame
         All the stormwater infrastructure line features within the area of interest
+    segments : gpd.GeoDataFrame
+        All the stormwater infrastructure line geometry split into segments
     pts : gpd.GeoDataFrame
         All the stormwater infrastructure point features within the area of interest
-    G : list
+    G : nx.DiGraph
         A list of all the graphs generated within the area of interest
     crs : pyproj.crs.crs.CRS
         The PyProj Coordinate Reference System of infrastructure data
@@ -78,15 +80,15 @@ class Network:
         '''
         Parameters:
         ----------
-        storm_lines : gpd.GeoDataFrame
+        storm_lines: gpd.GeoDataFrame
             All the stormwater infrastructure line features within the area of interest
-        storm_pts : gpd.GeoDataFrame
+        storm_pts: gpd.GeoDataFrame
             All the stormwater infrastructure points features within the area of interest
-        coord_decimals : int (default 3)
+        coord_decimals: int (default 3)
             Decimal to round line coordinates too, prevents problems with improper snapping
-        index_column: str
+        index_column: str (default 'OBJECTID')
             Column name in storm_pts 
-        type_column: str
+        type_column: str (default 'Type')
             Column in storm_pts GeoDataFrame that represents the type of each point
             (e.g., catchbasins, outfalls, culverts)
         is_sink_types: list
@@ -108,12 +110,20 @@ class Network:
         # self.lines.plot()
         # plt.show()
 
+        if index_column not in storm_lines:
+            raise ValueError(
+                'storm_lines does not contain the specified index column named: '
+                f'{index_column}'
+            )
+        self.lines = storm_lines
+        storm_lines = storm_lines.set_index(index_column)
+
         # Explode all lines into 2-vertex segments, add these as edges in a directional
         # graph with coordinate tuples as nodes. The DiGraph will initialize with two
         # edges connecting each node pair, one in each direction. Direction will be
         # revised later
         self.G = nx.DiGraph()
-        all_segments = []
+        all_segments = {}
         for line in storm_lines.itertuples(name='StormLine'):
             u_coords = line.geometry.coords[:-1]
             v_coords = line.geometry.coords[1:]
@@ -134,11 +144,14 @@ class Network:
                 self.G.add_edge(v, u)
 
             segments = list(map(LineString, zip(u_coords, v_coords)))
-            all_segments.extend(segments)
+            all_segments[line.Index] = segments
 
-        lines = gpd.GeoSeries(all_segments)
-        self.lines = gpd.GeoDataFrame(geometry=lines).set_crs(storm_lines.crs)
-        # self.lines = storm_lines
+        # Retain all segment data with the segment's source index stored in a column
+        self.segments = gpd.GeoDataFrame()
+        for src_index, segments in all_segments.items():
+            segments = gpd.GeoDataFrame(geometry=gpd.GeoSeries(segments), crs=self.crs)
+            segments[index_column] = src_index
+            self.segments = self.segments.append(segments, ignore_index=True)
 
         if index_column not in storm_pts.columns:
             raise ValueError(
@@ -169,7 +182,7 @@ class Network:
                 lambda x: True if x in source_types else False
             )
 
-        # Round all point coordinate values
+        # Round all point coordinate values, also converting any MultiPoints to Points
         self.pts['geometry'] = self.pts['geometry'].apply(
             lambda geom: Point([get_point_coords(geom, coord_decimals)])
         )
@@ -178,98 +191,6 @@ class Network:
         # ax = self.lines.plot()
         # self.pts.plot(ax=ax)
         # plt.show()
-    
-    def get_lines_at_point(self, pt, exclude_line: int=None) -> gpd.GeoDataFrame:
-        '''
-        Return any infrastructure lines that touch this point
-
-        It may be worth adding some sort of buffer / distance bubble if points aren't
-        snapped perfectly to line verticies?
-        
-        pt : StormPoint (named tuple)
-            The current stormwater infrastructure point feature
-        '''
-        assert pt.__class__.__name__ == 'StormPoint', f'Expected a "StormPoint" '\
-            f'namedtuple, but got {pt.__class__.__name__}'
-        x, y = get_point_coords(pt)
-
-        lines = self.lines.cx[x, y]
-        if exclude_line is not None:
-            lines = lines.drop(exclude_line)
-        return lines
-
-    def get_lines_at_coords(self, coords: tuple, exclude_line: int=None) -> gpd.GeoDataFrame:
-        x, y = coords
-        lines = self.lines.cx[x, y]
-        if exclude_line is not None:
-            lines = lines.drop(exclude_line)
-        return lines
-    
-    def get_line_coords(self, line) -> tuple:
-        assert line.__class__.__name__ == 'StormLine', f'get_line_coords() expected ' \
-            f'StormLine namedtuple, got {line.__class__.__name__}'
-
-        line_x, line_y = line.geometry.coords.xy
-        return line_x, line_y
-
-    def add_infra_node(self, pt: 'StormPoint') -> None:
-        '''
-        Add a point as a node in the graph
-
-        Parameters
-        ----------
-        pt: StormPoint namedtuple
-        '''
-        # oid will be the "name"/index of the node in the graph
-        oid = pt.Index
-
-        # keep all other columns from row that aren't OBJECTID in node's attributes
-        pt_dict = pt._asdict()
-        del pt_dict['Index']
-
-        if isinstance(pt_dict['geometry'], MultiPoint):
-            pt_dict['geometry'] = Point(
-                pt_dict['geometry'].geoms[0].x, pt_dict['geometry'].geoms[0].y
-            )
-
-        self.G.add_node(oid, **pt_dict)
-
-    def add_infra_edge(self, pt_start: 'StormPoint', pt_end: 'StormPoint') -> None:
-        '''
-        Parameters
-        ----------
-        pt_start: StormPoint namedtuple
-        pt_end: StormPoint namedtupe
-        '''
-        # connect both points 
-        pt_start_oid = pt_start.Index
-        pt_end_oid = pt_end.Index
-        self.G.add_edge(pt_start_oid, pt_end_oid)
-
-    def get_outlet(self, pt_oid: int) -> Optional[int]:
-        '''
-        Get OBJECTID(s) of the outlet(s) for a given storm_pt which exists in the graph.
-        Ideally this return be single outlet point.
-
-        Parameters
-        ----------
-        pt_oid: int
-            OBJECTID of point
-        '''
-        if pt_oid not in self.G:
-            print(f'The point {pt_oid} is not a node in the graph')
-            return
-
-        subG = nx.dfs_tree(self.G, pt_oid)
-        outlets = [oid for oid, deg in subG.out_degree() if deg == 0]
-        if len(outlets) == 0:
-            raise ValueError('Subgraph has no outlet.')
-        elif len(outlets) > 1:
-            warnings.warn(
-                f'Multiple outlets found for point with OBJECTID {pt_oid}, only '
-                'returning the first.'
-            )
-        return outlets[0]
 
     def to_StormPoint(self, pt) -> 'StormPoint':
         if isinstance(pt, gpd.GeoDataFrame):
@@ -290,8 +211,8 @@ class Network:
                 f'{pt.__class__.__name__}'
         return pt
 
-    def find_downstream_pt(self, pt) -> Optional[gpd.GeoDataFrame]:
-        print('Finding downstream point...')
+    def find_downstream_pt(self, pt) -> Optional['StormPoint']:
+        '''Get a StormPoint containing the downstream/outlet point for a given point'''
         pt = self.to_StormPoint(pt)
         pt_x = pt.geometry.x
         pt_y = pt.geometry.y
@@ -300,7 +221,7 @@ class Network:
         downstream_pt = self.traverse_downstream((pt_x, pt_y), visited)
         return downstream_pt
 
-    def traverse_downstream(self, coords: tuple, visited: set=None) -> Optional[gpd.GeoDataFrame]:
+    def traverse_downstream(self, coords: tuple, visited: set) -> Optional['StormPoint']:
         '''Utilize depth-first search to find an outfall/outlet point, '''
         x, y = coords
         visited.add((x, y))
@@ -317,7 +238,7 @@ class Network:
                 if downstream_pt is not None:
                     return downstream_pt
 
-    def resolve_direction(self, source_pt):
+    def resolve_direction(self, source_pt) -> None:
         source_pt = self.to_StormPoint(source_pt)
         v_x = source_pt.geometry.x
         v_y = source_pt.geometry.y
@@ -325,19 +246,63 @@ class Network:
         visited = set()
         self.traverse_upstream((v_x, v_y), visited)
 
-    def traverse_upstream(self, coords: tuple, visited: set=None) -> None:
+    def traverse_upstream(self, coords: tuple, visited: set) -> None:
         '''
         Revise direction of edges via depth-first search, starting from an outlet
         '''
-        if visited is None:
-            visited = set()
-
         v = coords
         visited.add(v)
         for u in self.G.predecessors(v):
             if u not in visited:
-                self.G.remove_edge(v, u)
+                # Only retain
+                if self.G.has_edge(v, u):
+                    assert self.G.has_edge(u, v)
+                    self.G.remove_edge(v, u)
                 self.traverse_upstream(u, visited)
+
+    def get_outlet(self, pt_idx: int) -> Optional[int]:
+        '''
+        Get Index of the outlet for a given storm_pt whose coordinates exist in the
+        graph
+
+        Parameters
+        ----------
+        pt_idx: int
+            Index of point, note that OBJECTID is the default index column
+        '''
+        
+        pt_x, pt_y = get_point_coords(self.pts.loc[pt_idx].geometry)
+        if (pt_x, pt_y) not in self.G:
+            print(
+                f'The point with index {pt_idx} does not have its coordinates as a '
+                'node in the graph'
+            )
+            return None
+
+        subG = nx.dfs_tree(self.G, (pt_x, pt_y))
+        outlet_coords = [coords for coords, deg in subG.out_degree() if deg == 0]
+        if len(outlet_coords) == 0:
+            raise ValueError(f'Subgraph of point with index {pt_idx} has no outlet')
+        elif len(outlet_coords) > 1:
+            warnings.warn(
+                f'Multiple outlet coordinates found for point with index {pt_idx}, '
+                'only returning the first'
+            )
+        outlet_x, outlet_y = outlet_coords[0]
+        outlet_pts = self.pts.cx[outlet_x, outlet_y]
+
+        if len(outlet_pts) == 0:
+            raise ValueError(
+                'No point present at the outlet coordinate for point with index '
+                '{pt_idx}'
+            )
+        elif len(outlet_pts) > 1:
+            warnings.warn(
+                f'Multiple outlet coordinates found for point with index {pt_idx}, '
+                'only returning the first'
+            )
+
+        return outlet_pts.iloc[0].name
 
     def get_outlet_points(self, catchment: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         '''
