@@ -3,7 +3,7 @@ import geopandas as gpd
 import pandas as pd
 import networkx as nx
 from typing import Optional
-from shapely.geometry import MultiPoint, Point
+from shapely.geometry import LineString, MultiPoint, Point
 import warnings
 
 SINK_TYPES_VT = [   
@@ -15,6 +15,39 @@ SOURCE_TYPES_VT = [
     5, # Outfall
     9, # Culvert outlet
 ]
+
+def get_point_coords(pt_geom, decimals: int=None) -> tuple:
+    '''
+    Get and x, y coordinate tuple from a Point or MultiPoint shapely geometry
+
+    Parameters
+    ----------
+    pt_geom: Point | MultiPoint
+        shapely geometry object
+    decimals: int (default None)
+        Decimals to round coordinates to
+    '''
+    if isinstance(pt_geom, Point):
+        x = pt_geom.x
+        y = pt_geom.y
+    elif isinstance(pt_geom, MultiPoint):
+        x = pt_geom.geoms[0].x
+        y = pt_geom.geoms[0].y
+        if len(pt_geom.geoms) > 1:
+            warnings.warn(
+                f'A point at coordinate ({x}, {y}) has MultiPoint geometry with '
+                'multiple point coordinates, only returning the first'
+        )
+    else:
+        raise ValueError(
+            f'Failed to get coords for Point with geometry type: {type(pt_geom)}'
+        )
+    if decimals is not None:
+        x = round(x, decimals)
+        y = round(y, decimals)
+    
+    return x, y
+
 
 class Network:
     '''
@@ -36,6 +69,7 @@ class Network:
         self,
         storm_lines: gpd.GeoDataFrame,
         storm_pts: gpd.GeoDataFrame,
+        coord_decimals: int=3,
         index_column: str='OBJECTID',
         type_column: str='Type',
         sink_types: list=SINK_TYPES_VT,
@@ -48,8 +82,10 @@ class Network:
             All the stormwater infrastructure line features within the area of interest
         storm_pts : gpd.GeoDataFrame
             All the stormwater infrastructure points features within the area of interest
+        coord_decimals : int (default 3)
+            Decimal to round line coordinates too, prevents problems with improper snapping
         index_column: str
-            Column name in both storm_lines and storm_pts 
+            Column name in storm_pts 
         type_column: str
             Column in storm_pts GeoDataFrame that represents the type of each point
             (e.g., catchbasins, outfalls, culverts)
@@ -61,14 +97,48 @@ class Network:
             these points, such as an outfall 
         '''
         # print('Initializing Network...')
-
-        if index_column not in storm_lines.columns:
+        if storm_pts.crs != storm_lines.crs:
             raise ValueError(
-                'storm_lines does not contain a column with provided index column '
-                'name: {index_column}'
+                'Coordinate reference systems of point and line datasets must match'
             )
-        self.lines = storm_lines
-        self.lines.set_index(index_column, inplace=True)
+        self.crs = storm_pts.crs
+
+        # TODO: Remove this
+        # import matplotlib.pyplot as plt
+        # self.lines.plot()
+        # plt.show()
+
+        # Explode all lines into 2-vertex segments, add these as edges in a directional
+        # graph with coordinate tuples as nodes. The DiGraph will initialize with two
+        # edges connecting each node pair, one in each direction. Direction will be
+        # revised later
+        self.G = nx.DiGraph()
+        all_segments = []
+        for line in storm_lines.itertuples(name='StormLine'):
+            u_coords = line.geometry.coords[:-1]
+            v_coords = line.geometry.coords[1:]
+            # Round all coordinate values
+            u_coords = [
+                tuple(
+                    [round(x, coord_decimals), round(y, coord_decimals)]
+                ) for x, y in u_coords
+            ]
+            v_coords = [
+                tuple(
+                    [round(x, coord_decimals), round(y, coord_decimals)]
+                ) for x, y in v_coords
+            ]
+            
+            for u, v in zip(u_coords, v_coords):
+                self.G.add_edge(u, v)
+                self.G.add_edge(v, u)
+
+            segments = list(map(LineString, zip(u_coords, v_coords)))
+            all_segments.extend(segments)
+
+        lines = gpd.GeoSeries(all_segments)
+        self.lines = gpd.GeoDataFrame(geometry=lines).set_crs(storm_lines.crs)
+        # self.lines = storm_lines
 
         if index_column not in storm_pts.columns:
             raise ValueError(
@@ -99,42 +169,17 @@ class Network:
                 lambda x: True if x in source_types else False
             )
 
-        if self.pts.crs != self.lines.crs:
-            raise ValueError(
-                'Coordinate reference systems of point and line datasets must match'
-            )
-        self.crs = self.pts.crs
-
-        # Initialize empty Directional Graph, can consist many disconnected subgraphs
-        self.G = nx.DiGraph()
-
-    def get_point_coords(self, pt) -> tuple:
-        '''
-        Get and x, y coordinate tuple from a StormPoint
-
-        Parameters
-        ----------
-        pt : StormPoint (named tuple)
-            The current stormwater infrastructure point feature
-        '''
-        if isinstance(pt.geometry, Point):
-            x = pt.geometry.x
-            y = pt.geometry.y
-        elif isinstance(pt.geometry, MultiPoint):
-            if len(pt.geometry.geoms) > 1:
-                warnings.warn(
-                    f'Point {pt.Index} has MultiPoint geometry with multiple point '
-                    'coordinates, only selecting the first'
-            )
-            x = pt.geometry.geoms[0].x
-            y = pt.geometry.geoms[0].y
-        else:
-            raise ValueError(
-                f'Failed to get coords for Point with geometry type: {type(pt.geometry)}'
-            )
-        return x, y
+        # Round all point coordinate values
+        self.pts['geometry'] = self.pts['geometry'].apply(
+            lambda geom: Point([get_point_coords(geom, coord_decimals)])
+        )
+        
+        # TODO: Remove this
+        # ax = self.lines.plot()
+        # self.pts.plot(ax=ax)
+        # plt.show()
     
-    def get_lines_at_point(self, pt) -> gpd.GeoDataFrame:
+    def get_lines_at_point(self, pt, exclude_line: int=None) -> gpd.GeoDataFrame:
         '''
         Return any infrastructure lines that touch this point
 
@@ -146,8 +191,19 @@ class Network:
         '''
         assert pt.__class__.__name__ == 'StormPoint', f'Expected a "StormPoint" '\
             f'namedtuple, but got {pt.__class__.__name__}'
-        x, y = self.get_point_coords(pt)
-        return self.lines.cx[x, y]
+        x, y = get_point_coords(pt)
+
+        lines = self.lines.cx[x, y]
+        if exclude_line is not None:
+            lines = lines.drop(exclude_line)
+        return lines
+
+    def get_lines_at_coords(self, coords: tuple, exclude_line: int=None) -> gpd.GeoDataFrame:
+        x, y = coords
+        lines = self.lines.cx[x, y]
+        if exclude_line is not None:
+            lines = lines.drop(exclude_line)
+        return lines
     
     def get_line_coords(self, line) -> tuple:
         assert line.__class__.__name__ == 'StormLine', f'get_line_coords() expected ' \
@@ -156,7 +212,7 @@ class Network:
         line_x, line_y = line.geometry.coords.xy
         return line_x, line_y
 
-    def add_infra_node(self, pt) -> None:
+    def add_infra_node(self, pt: 'StormPoint') -> None:
         '''
         Add a point as a node in the graph
 
@@ -215,21 +271,7 @@ class Network:
             )
         return outlets[0]
 
-    def add_upstream_pts(self, downstream_pt) -> None:
-        self.init_traverse(downstream_pt, True)
-        return
-
-    def find_downstream_pt(self, pt) -> Optional[gpd.GeoDataFrame]:
-        downsteam_pt = self.init_traverse(pt, False)
-        return downsteam_pt
-
-    def init_traverse(self, pt, traverse_upstream: bool) -> Optional[gpd.GeoDataFrame]:
-        '''
-        pt: gpd.GeoDataFrame | StormPoint namedtuple
-        '''
-        # TODO: Potentially just work this function into the main _traverse() function?
-        # It seems unnecessary to seperate them?
-        
+    def to_StormPoint(self, pt) -> 'StormPoint':
         if isinstance(pt, gpd.GeoDataFrame):
             if len(pt) > 1:
                 warnings.warn(
@@ -246,195 +288,56 @@ class Network:
             assert pt.__class__.__name__ == 'StormPoint', f'Expected pt to be a ' \
                 'gpd.GeoDataFrame or a StormPoint namedtuple, got a ' \
                 f'{pt.__class__.__name__}'
-        
-        lines = self.get_lines_at_point(pt)
-        if len(lines) < 1:
-            print(f'No lines connect to point with OBJECTID: {pt.Index}')
-            return
+        return pt
 
-        for line in lines.itertuples(name='StormLine'):
-            line_oid = line.Index
-            line_x, line_y = self.get_line_coords(line)
+    def find_downstream_pt(self, pt) -> Optional[gpd.GeoDataFrame]:
+        print('Finding downstream point...')
+        pt = self.to_StormPoint(pt)
+        pt_x = pt.geometry.x
+        pt_y = pt.geometry.y
 
-            # enter network traverse function, potential recursion here
-            return_pt = self.traverse(
-                pt, line_oid, (line_x, line_y), True, traverse_upstream
-            )
-            
-            if return_pt is not None:
-                # Found a downstream point
-                return return_pt
+        visited = set()
+        downstream_pt = self.traverse_downstream((pt_x, pt_y), visited)
+        return downstream_pt
 
-        return return_pt
+    def traverse_downstream(self, coords: tuple, visited: set=None) -> Optional[gpd.GeoDataFrame]:
+        '''Utilize depth-first search to find an outfall/outlet point, '''
+        x, y = coords
+        visited.add((x, y))
 
-    def traverse(
-        self,
-        current_pt: 'StormPoint',
-        line_oid: int,
-        line_coords: tuple,
-        new_line: bool,
-        traverse_upstream: bool,
-    ) -> Optional[gpd.GeoDataFrame]:
+        for n in self.G.neighbors((x, y)):
+            n_pt = self.pts.cx[n[0], n[1]]
+            if not n_pt.empty:
+                n_pt = self.to_StormPoint(n_pt)
+                if n_pt.IS_SOURCE:
+                    # search complete
+                    return n_pt
+            if n not in visited:
+                downstream_pt = self.traverse_downstream(n, visited)
+                if downstream_pt is not None:
+                    return downstream_pt
+
+    def resolve_direction(self, source_pt):
+        source_pt = self.to_StormPoint(source_pt)
+        v_x = source_pt.geometry.x
+        v_y = source_pt.geometry.y
+
+        visited = set()
+        self.traverse_upstream((v_x, v_y), visited)
+
+    def traverse_upstream(self, coords: tuple, visited: set=None) -> None:
         '''
-        Find any pts upstream or downstream of the current point along the current line.
-        If traversing upstream, these will be the added as the next upstream node(s) in
-        the current graph.
-
-        This is a destructive process, going from the bottom of the line, traversing
-        upwards and removing the old verticies from the line as we go
-
-        Parameters
-        ----------
-        current_pt: StormPoint
-            The current point feature, for which this function will find the next
-            point(s) for, and optionally add them to the current graph if traversing
-            upstream
-
-        line_oid: int
-            OBJECTID integer value for the current line feature
-
-        line_coords: tuple
-            Tuple containing two lists of equal length, with the first containing the
-            x-coordinates of all the verticies in the line, the second containing the
-            y-coordinates
-
-        new_line: bool
-            True/False to determine if line is being worked on, or if line coordinates
-            need to be extracted and ordered
-
-        traverse_upstream: bool
-            If True, will add each sucessive upstream point to the current graph
-
-        Returns
-        -------
-        None | next_pt: gpd.GeoDataFrame
-            If traversing upstream, returns None. If traversing downstream, returns 
-            next_pt (gpd.GeoDataFrame) which represents an identified downstream point.
-            Can also return None if no downstream point is found while traversing
-            downstream.
+        Revise direction of edges via depth-first search, starting from an outlet
         '''
+        if visited is None:
+            visited = set()
 
-        if traverse_upstream:
-            # initalize subgraph
-            self.add_infra_node(current_pt)
-
-        line_x, line_y = line_coords
-
-        if new_line:
-            # order the line verticies so that we can iterate upstream 
-            current_pt_x, current_pt_y = self.get_point_coords(current_pt)
-
-            assert (current_pt_x in line_x) and (current_pt_y in line_y), 'Could not ' \
-                'find current point within the line coordinates'
-
-            x_index = line_x.index(current_pt_x)
-            y_index = line_y.index(current_pt_y)
-            assert x_index == y_index
-            # TODO: Think of a way to address this:
-            # This could fail to find the CORRECT index of the downstream point within the
-            # cooridnates of the current line. This could happen in if verticies along the
-            # line share the exact same x coordinates (for example) but have different
-            # y coordinates
-
-            if x_index != 0:
-                # downstream point is not listed first in the line coordinates
-                line_x.reverse()
-                line_y.reverse()
-
-            # now line coords are ordered downstream -> upstream
-            # remove starting coordinate from line
-            del line_x[0]
-            del line_y[0]
-
-        # iterate through line coords to find next nodes
-        for i, (x, y) in enumerate(zip(line_x, line_y)):
-            # try to find a storm_pt with coordinates at this vertex
-
-            # TODO: Allow for some sort of buffer here if points are not snapped?
-            # TODO: Also search for points that are snapped to the line, but aren't
-            # snapped to a vertex?
-
-            next_pt = self.pts.cx[x, y] # gpd.GeoDataFrame
-
-            if len(next_pt) == 0:
-                # TODO: Can either assign a new point here to represnt a line vertex
-                # with no corresponding StormPoint. Or can end the traverse of this
-                # line here, which would only allow line verticies that have StormPoints
-                # on them into the graph. Could end here with:
-                # return
-                
-                # TODO: Assigning a new_oid here can be risky if graphs are to be
-                # reused. What if a user wants to take a big graph that was previously
-                # generated and saved, then expand it with neighboring data? Then
-                # certain values for these verticies may have been assigned OBJECTIDs
-                # that are represented as actual storm points in the new data. An
-                # alternate way of approaching this is giving these points an OBJECTID
-                # of 0, then checking for membership in the graph by geometry.
-
-                # Add a point to self.pts for this vertex
-                new_oid = self.pts.index.max() + 1
-                new_pt = {
-                    'Type': 0,
-                    'IS_SINK': False,
-                    'IS_SOURCE': False,
-                    'geometry': Point(x, y),
-                }
-                self.pts.loc[new_oid] = new_pt
-                new_pt['Index'] = new_oid
-                # convert this to StormPoint namedtuple
-                next_pt = namedtuple('StormPoint', new_pt.keys())(*new_pt.values())
-            elif len(next_pt) > 0:
-                if len(next_pt) > 1:
-                    warnings.warn(
-                        'Found more than one point at stormline vertex, only keeping '
-                        f'the first point with OBJECTID {next_pt.index.min()}'
-                    )
-                pt_iter = next_pt.itertuples(name='StormPoint')
-                next_pt = next(pt_iter)
-
-            if traverse_upstream:
-                # add new node and edge from next_pt -> current_pt
-                self.add_infra_node(next_pt)
-                self.add_infra_edge(next_pt, current_pt)
-            elif next_pt.IS_SOURCE:
-                # traversing downstream and just found an outlet point
-                return next_pt
-
-            # remove the coord from the line points
-            del line_x[i]
-            del line_y[i]
-
-            if len(line_x) == 0:
-                # no more verticies along line to inspect
-                assert len(line_x) == len(line_y), 'Lists of x and y coordinates for '\
-                    'the current line are unequal in length'
-
-                # find next line(s)
-                lines = self.get_lines_at_point(next_pt)
-                # but get rid of current line, since we already traversed it
-                lines = lines.drop(line_oid)
-
-                for line in lines.itertuples(name='StormLine'):
-                    line_oid = line.Index
-                    line_x, line_y = self.get_line_coords(line)
-
-                    # TODO: What would happen if a network had multiple outlet points?
-                    # only the last outlet point found would be returned it seems. is
-                    # this a problem?
-
-                    # recursively call search on each of these new lines
-                    return_pt = self.traverse(
-                        next_pt, line_oid, (line_x, line_y), True, traverse_upstream
-                    )
-                    if return_pt is not None:
-                        return return_pt
-    
-            else:
-                # recursively call search
-                self.traverse(
-                    next_pt, line_oid, (line_x, line_y), False, traverse_upstream
-                )
-                # TODO: Conditionally return a value if return_pt is not None?
+        v = coords
+        visited.add(v)
+        for u in self.G.predecessors(v):
+            if u not in visited:
+                self.G.remove_edge(v, u)
+                self.traverse_upstream(u, visited)
 
     def get_outlet_points(self, catchment: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         '''
