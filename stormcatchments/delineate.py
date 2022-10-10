@@ -145,7 +145,7 @@ class Delineate:
         continue
       else:
         delineated_oids.add(pt.Index)
-        x, y = self.net.get_point_coords(pt)
+        x, y = net.get_point_coords(pt)
         pt_catchment = self.get_catchment((x, y))
         catchments = catchments.append(pt_catchment)
 
@@ -174,7 +174,7 @@ class Delineate:
       A GeoDataFrame containing the newly delineated catchment polygon
     '''
     catchment = self.get_catchment(pour_pt, acc_thresh)
-    self.net.generate_catchment_graphs(catchment)
+    self.net.resolve_catchment_graph(catchment)
 
     delineated_oids = set()
 
