@@ -91,24 +91,18 @@ class Network:
         type_column: str (default 'Type')
             Column in storm_pts GeoDataFrame that represents the type of each point
             (e.g., catchbasins, outfalls, culverts)
-        is_sink_types: list
+        sink_types: list (default SINK_TYPES_VT)
             List of type values that correspond to flow sinks, where flow enters at
             these points, such as a catchbasin
-        is_source_types: list
+        source_types: list (default SOURCE_TYPES_VT)
             List of type values that correspond to flow sources, where flow exits at
             these points, such as an outfall 
         '''
-        # print('Initializing Network...')
         if storm_pts.crs != storm_lines.crs:
             raise ValueError(
                 'Coordinate reference systems of point and line datasets must match'
             )
         self.crs = storm_pts.crs
-
-        # TODO: Remove this
-        # import matplotlib.pyplot as plt
-        # self.lines.plot()
-        # plt.show()
 
         if index_column not in storm_lines:
             raise ValueError(
@@ -138,7 +132,7 @@ class Network:
                     [round(x, coord_decimals), round(y, coord_decimals)]
                 ) for x, y in v_coords
             ]
-            
+            # Add edges in both directions between each vertex pair
             for u, v in zip(u_coords, v_coords):
                 self.G.add_edge(u, v)
                 self.G.add_edge(v, u)
@@ -186,11 +180,6 @@ class Network:
         self.pts['geometry'] = self.pts['geometry'].apply(
             lambda geom: Point([get_point_coords(geom, coord_decimals)])
         )
-        
-        # TODO: Remove this
-        # ax = self.lines.plot()
-        # self.pts.plot(ax=ax)
-        # plt.show()
 
     def to_StormPoint(self, pt) -> 'StormPoint':
         if isinstance(pt, gpd.GeoDataFrame):
@@ -265,6 +254,30 @@ class Network:
                     self.G.remove_edge(v, u)
                 self.traverse_upstream(u, visited)
 
+    def resolve_catchment_graph(self, catchment: gpd.GeoDataFrame) -> None:
+        '''
+        Resolve graph representations of all infrastructure networks that are within or
+        partially within a catchment
+
+        Parameters
+        ----------
+        catchment: gpd.GeoDataFrame
+            A GeoPandas GeoDataFrame with the catchment polygon
+        '''
+        # ensure CRS match
+        if catchment.crs != self.pts.crs:
+            catchment = catchment.to_crs(crs=self.pts.crs)
+
+        pts = gpd.clip(self.pts, catchment)
+        for pt in pts.itertuples(name='StormPoint'):
+            if pt.IS_SOURCE:
+                # is an outlet point, may bring flow into the catchment
+                self.resolve_direction(pt)
+            else:
+                # find this point's downstream_pt and resolve directions from there
+                downstream_pt = self.find_downstream_pt(pt)
+                self.resolve_direction(downstream_pt)
+
     def get_outlet(self, pt_idx: int) -> Optional[int]:
         '''
         Get Index of the outlet for a given storm_pt whose coordinates exist in the
@@ -293,9 +306,9 @@ class Network:
                 f'Multiple outlet coordinates found for point with index {pt_idx}, '
                 'only returning the first'
             )
-        outlet_x, outlet_y = outlet_coords[0]
-        outlet_pts = self.pts.cx[outlet_x, outlet_y]
 
+        outlet_x, outlet_y = outlet_coords[0]
+        outlet_pts = self.pts.cx[outlet_x, outlet_y] # gpd.GeoDataFrame
         if len(outlet_pts) == 0:
             raise ValueError(
                 'No point present at the outlet coordinate for point with index '
@@ -325,15 +338,15 @@ class Network:
 
         catchment_pts = gpd.clip(self.pts, catchment)
         sink_pts = catchment_pts[catchment_pts['IS_SINK']==True]
-        sink_pt_oids = sink_pts.index.tolist()
 
-        oids_to_remove = []
-        for sink_pt_oid in sink_pt_oids:
-            outlet_oid = self.get_outlet(sink_pt_oid)
-            if outlet_oid is not None and outlet_oid not in catchment_pts.index:
-                oids_to_remove.append(sink_pt_oid)
+        indicies_to_remove = []
+        sink_pt_inidicies = sink_pts.index.to_list()
+        for idx in sink_pt_inidicies:
+            outlet_idx = self.get_outlet(idx)
+            if outlet_idx is not None and outlet_idx not in catchment_pts.index:
+                indicies_to_remove.append(outlet_idx)
         
-        return self.pts.loc[oids_to_remove]
+        return self.pts.loc[indicies_to_remove]
 
     def get_inlet_points(self, catchment: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         '''
@@ -356,50 +369,26 @@ class Network:
 
         catchment_pts = gpd.clip(self.pts, catchment)
         source_pts = catchment_pts[catchment_pts['IS_SOURCE']==True]
-        source_pt_oids = source_pts.index.tolist()
-        
-        # get subgraphs for each source_pt
-        source_subGs = []
-        for subG in nx.weakly_connected_components(self.G):
-            for source_pt_oid in source_pt_oids:
-                if source_pt_oid in subG:
-                    source_subGs.append(subG)
-        
-        # find points from each subgraph that contribute flow to current catchment
-        oids_to_add = []
-        for subG in source_subGs:
-            for node in subG:
-                if node in catchment_pts.index:
+        source_pt_geoms = source_pts.geometry.tolist()
+        source_pt_coords = [get_point_coords(geom) for geom in source_pt_geoms]
+
+        contrib_sink_inidices = set()
+        for coords in source_pt_coords:
+            tree = nx.bfs_tree(self.G, coords, reverse=True)
+
+            for node in tree.nodes():
+                if catchment.contains(Point(node)).any():
                     continue
-                if self.pts.at[node, 'IS_SINK']:
-                    oids_to_add.append(node)
+                
+                # Look for StormPoints at these coordinates
+                pt = self.pts.cx[node[0], node[1]]
+                if not pt.empty:
+                    pt = self.to_StormPoint(pt)
+                    contrib_sink_inidices.add(pt.Index)
         
-        return self.pts.loc[oids_to_add]
-     
-    def resolve_catchment_graph(self, catchment: gpd.GeoDataFrame) -> None:
-        '''
-        Resolve graph representations of all infrastructure networks that are within or
-        partially within a catchment
+        return self.pts.loc[contrib_sink_inidices]
 
-        Parameters
-        ----------
-        catchment: gpd.GeoDataFrame
-            A GeoPandas GeoDataFrame with the catchment polygon
-        '''
-        # ensure CRS match
-        if catchment.crs != self.pts.crs:
-            catchment = catchment.to_crs(crs=self.pts.crs)
-
-        pts = gpd.clip(self.pts, catchment)
-        for pt in pts.itertuples(name='StormPoint'):
-            if pt.IS_SOURCE:
-                # is an outlet point, may bring flow into the catchment
-                self.resolve_direction(pt)
-            else:
-                # find this point's downstream_pt and resolve directions from there
-                downstream_pt = self.find_downstream_pt(pt)
-                self.resolve_direction(downstream_pt)
-
+    # TODO: Need to fix this to compensate for new graph generation method
     def draw_G(self, subG_node: int=None, ax=None, add_basemap=True) -> 'plt.axes':
         '''
         Draw the Graph using the geographic coordinates of each node
