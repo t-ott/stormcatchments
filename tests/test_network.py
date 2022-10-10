@@ -12,11 +12,24 @@ def net_johnson():
   return net
 
 
-def test_init_johnson(net_johnson):
+def test_non_empty_graph_johnson(net_johnson):
   '''Ensure Network initialization generates non-empty graph'''
   net = net_johnson
   assert not net.segments.empty
   assert net.G.number_of_nodes() > 0
+
+
+def test_line_segmentation_johnson(net_johnson):
+  '''
+  Ensure line segmentation process of Network initialization retains total line length
+  within 0.1m
+  '''
+  net = net_johnson
+  assert round(
+    net.lines.geometry.length.sum(), 1
+  ) == round(
+    net.segments.geometry.length.sum(), 1
+  )
 
 
 def test_points_in_graph_johnson(net_johnson):
@@ -66,6 +79,10 @@ def test_resolve_direction_complex_johnson(net_johnson):
 
 
 def test_get_outlet_johnson(net_johnson):
+  '''
+  After resolving direction for a SINK point, test that it's outlet is properly
+  identified
+  '''
   net = net_johnson
   outfall_pt = net.pts.loc[21134]
   net.resolve_direction(outfall_pt)
@@ -73,19 +90,29 @@ def test_get_outlet_johnson(net_johnson):
 
 
 def test_find_downstream_simple_johnson(net_johnson):
+  '''Ensure the proper downstream point is found for a SINK point'''
   net = net_johnson
   upstream_pt = net.pts.loc[245051]
   downstream_pt = net.find_downstream_pt(upstream_pt)
   assert downstream_pt.Index == 244132
 
 
-# def test_generate_catchment_graphs_johnson(net_johnson):
-#   initial_catchment = gpd.read_file('tests/test_data/johnson_vt/initial_catchment.shp')
-#   net_johnson.generate_catchment_graphs(initial_catchment['geometry'])
-#   pt_types = [
-#     pt_type for _, pt_type in nx.get_node_attributes(net_johnson.G, 'Type').items()
-#   ]
-#   # 3 catchbasins
-#   assert pt_types.count(2) == 3
-#   # 3 culvert outlets
-#   assert pt_types.count(9) == 3
+def test_resolve_catchment_graphs_johnson(net_johnson):
+  '''
+  Test that resolve_catchment_graph removes all bidirectional edges within the
+  catchment, meaning the flow directions for the catchment subgraph have been fully
+  resolved / have no ambiguity 
+  '''
+  net = net_johnson
+  catchment = gpd.read_file('tests/test_data/johnson_vt/initial_catchment.shp')
+  net.resolve_catchment_graph(catchment)
+
+  # Check each point within the catchment to ensure it has no bidirectional edges
+  catchment = catchment.to_crs(net.crs)
+  catchment_pts = gpd.clip(net.pts, catchment)
+  for pt in catchment_pts.itertuples('StormPoint'):
+    x, y = network.get_point_coords(pt.geometry)
+    predecessors = [u for u in net.G.predecessors((x, y))]
+    successors = [v for v in net.G.successors((x, y))]
+    # There should be no nodes that are both predecessors and successors
+    assert len(set(predecessors).intersection(successors)) == 0
