@@ -114,7 +114,7 @@ class Delineate:
     return get_catchment(pour_pt, self.grid, self.fdir, self.acc, self.grid_epsg)
 
   def delineate_points(
-    self, pts: gpd.GeoDataFrame, delineated_oids: set
+    self, pts: gpd.GeoDataFrame, delineated: set
   ) -> tuple([gpd.GeoDataFrame, set]):
     '''
     Delineate catchments for a subset of infrastructure points
@@ -140,19 +140,20 @@ class Delineate:
     '''
     catchments = gpd.GeoDataFrame()
 
-    for pt in pts.itertuples():
-      if pt.Index in delineated_oids:
+    for pt in pts.itertuples(name='StormPoint'):
+      if pt.Index in delineated:
         continue
       else:
-        delineated_oids.add(pt.Index)
-        x, y = self.net.get_point_coords(pt)
+        delineated.add(pt.Index)
+        x = pt.geometry.x
+        y = pt.geometry.y
         pt_catchment = self.get_catchment((x, y))
         catchments = catchments.append(pt_catchment)
 
     if not catchments.empty:
       catchments = catchments.set_crs(epsg=self.grid_epsg)
 
-    return catchments, delineated_oids
+    return catchments, delineated
 
 
   def get_stormcatchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoDataFrame:
@@ -174,15 +175,16 @@ class Delineate:
       A GeoDataFrame containing the newly delineated catchment polygon
     '''
     catchment = self.get_catchment(pour_pt, acc_thresh)
-    self.net.generate_catchment_graphs(catchment)
+    self.net.resolve_catchment_graph(catchment)
 
-    delineated_oids = set()
+    # Keep track of all point indicies which have been delineated
+    delineated = set()
 
     while True:
       outlet_pts = self.net.get_outlet_points(catchment)
       if not outlet_pts.empty:
-        outlet_catchments, delineated_oids = self.delineate_points(
-          outlet_pts, delineated_oids
+        outlet_catchments, delineated = self.delineate_points(
+          outlet_pts, delineated
         )
         if not outlet_catchments.empty:
           catchment = gpd.overlay(
@@ -195,15 +197,15 @@ class Delineate:
 
       inlet_pts = self.net.get_inlet_points(catchment)
       if not inlet_pts.empty:
-        inlet_catchments, delineated_oids = self.delineate_points(
-          inlet_pts, delineated_oids
+        inlet_catchments, delineated = self.delineate_points(
+          inlet_pts, delineated
         )
         if not inlet_catchments.empty:
           catchment = gpd.overlay(
             catchment, inlet_catchments, how='union'
           ).set_crs(epsg=self.grid_epsg)
           catchment = catchment.dissolve()
-          self.net.generate_catchment_graphs(catchment)
+          self.net.resolve_catchment_graph(catchment)
         else:
           # empty inlet_pts
           inlet_pts = gpd.GeoDataFrame()
