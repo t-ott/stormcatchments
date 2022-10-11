@@ -124,7 +124,7 @@ class Delineate:
     pts: gpd.GeoDataFrame
       Points to delineate catchments for
     
-    delineated_oids: set
+    delineated: set
       A set of the OBJECTID (indicies) of point that have already been delineated. These
       points may or may not lie spatially within the catchment because snapping to the
       flow accumulation raster may shift their location
@@ -135,7 +135,7 @@ class Delineate:
       The newly delineated catchment for all the provided points, or an empty
       GeoDataFrame if the provided points have already been delineated
     
-    delineated_oids: set
+    delineated: set
       (Same as Parameter delineated_oids, see above)
     '''
     catchments = gpd.GeoDataFrame()
