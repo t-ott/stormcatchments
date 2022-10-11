@@ -20,7 +20,7 @@ def test_get_catchment(delineate_johnson):
   delin = delineate_johnson
   pour_pt = (484636, 237170)
   catchment = delin.get_catchment(pour_pt)
-  assert round(catchment.area.values[0], 1) == 6796.3
+  assert round(catchment.area.values[0]) == 6796
 
 def test_get_stormcatchment(delineate_johnson):
   delin = delineate_johnson

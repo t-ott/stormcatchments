@@ -388,16 +388,14 @@ class Network:
         
         return self.pts.loc[contrib_sink_inidices]
 
-    # TODO: Need to fix this to compensate for new graph generation method
-    def draw_G(self, subG_node: int=None, ax=None, add_basemap=True) -> 'plt.axes':
+    def draw(self, extent: gpd.GeoDataFrame=None, ax=None, add_basemap: bool=True) -> 'plt.axes':
         '''
         Draw the Graph using the geographic coordinates of each node
 
         Parameters
         ----------
-        subG_node: int (default None)
-            Name (OBJECTID) of node for which only its connected nodes will be drawn.
-            Any nodes without a path to subG_node will therefore not be drawn.
+        extent: gpd.GeoDataFrame (default None)
+            GeoDataFrame whose extent will be used to trim the infrastructure data
         
         ax: plt.axes | None (default None)
         
@@ -405,6 +403,7 @@ class Network:
             Option to add a contextily basemap to the plot
         '''
         import matplotlib.pyplot as plt
+        from matplotlib.collections import LineCollection
         import numpy as np
         if add_basemap:
             import contextily as cx
@@ -413,32 +412,69 @@ class Network:
             ax = plt.gca()
             ax.axis('equal')
 
-        # Plot edges as arrows
+        # Extent geometry
+        if extent is not None:
+            if extent.crs != self.crs:
+                extent = extent.to_crs(self.crs)
+            envelope = extent['geometry'].envelope.iloc[0]
+
+        # bidirectional_edges = [edge for edge in self.G.edges() if ]
+
+        bidirectional_edges = []
+        directional_edges = []
         for edge in self.G.edges():
-            u_geom = self.G.nodes[edge[0]]['geometry']
-            v_geom = self.G.nodes[edge[1]]['geometry']
+            if extent is not None:
+                # Exclude edges with no verticies within extent
+                if not envelope.contains(Point(edge[0][0], edge[0][1])) and \
+                    not envelope.contains(Point(edge[1][0], edge[1][1])):
+                    continue
+            if self.G.has_edge(edge[1], edge[0]):
+                bidirectional_edges.append(edge)
+            else:
+                directional_edges.append(edge)
+
+        # Plot directional edges as arrows
+        for edge in directional_edges:
+            u_x, u_y = edge[0]
+            v_x, v_y = edge[1]
             ax.arrow(
-                u_geom.x,
-                u_geom.y,
-                v_geom.x - u_geom.x,
-                v_geom.y - u_geom.y,
+                u_x,
+                u_y,
+                v_x - u_x,
+                v_y - u_y,
+                shape='left',
                 width=0.1,
-                head_width=1,
+                head_width=2,
                 length_includes_head=True,
-                ec='red',
-                fc='red',
+                ec='darkblue',
+                fc='cyan',
                 zorder=1
             )
 
-        coords = np.array([
-            [geom.x, geom.y] for _, geom in 
-            nx.get_node_attributes(self.G, 'geometry').items()
-        ])
-        pt_type = np.array([
-            pt_type for _, pt_type in nx.get_node_attributes(self.G, 'Type').items()
-        ])
-        # Plot nodes 
-        ax.scatter(coords[:, 0], coords[:, 1], c=pt_type, marker='s', s=5, zorder=2)
+        # Plot bidirectional edges as segments
+        lc = LineCollection([edge for edge in bidirectional_edges], color='darkblue')
+        ax.add_collection(lc)
+
+        if extent is not None:
+            pts = gpd.clip(self.pts, extent['geometry'].envelope)
+        else:
+            pts = self.pts
+        
+        # Plot points
+        sink_pts = pts[pts['IS_SINK']==True]
+        source_pts = pts[pts['IS_SOURCE']==True]
+        other_pts = pts[
+            (pts['IS_SINK']==False) & (pts['IS_SOURCE']==False)
+        ]
+        sink_pts.plot(
+            ax=ax, color='white', marker='s', edgecolor='black', markersize=10, zorder=2
+        )
+        source_pts.plot(
+            ax=ax, color='white', marker='o', edgecolor='black', markersize=10, zorder=2
+        )
+        other_pts.plot(
+            ax=ax, color='gray', marker='o', edgecolor='black', markersize=10, zorder=2
+        )
 
         if add_basemap:
             try:
