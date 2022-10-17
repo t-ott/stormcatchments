@@ -73,7 +73,7 @@ class Network:
         storm_pts: gpd.GeoDataFrame,
         coord_decimals: int=3,
         index_column: str='OBJECTID',
-        type_column: str='Type',
+        type_column: Optional[str]='Type',
         sink_types: list=SINK_TYPES_VT,
         source_types: list=SOURCE_TYPES_VT,
     ):
@@ -88,9 +88,10 @@ class Network:
             Decimal to round line coordinates too, prevents problems with improper snapping
         index_column: str (default 'OBJECTID')
             Column name in storm_pts 
-        type_column: str (default 'Type')
+        type_column: str | None (default 'Type')
             Column in storm_pts GeoDataFrame that represents the type of each point
-            (e.g., catchbasins, outfalls, culverts)
+            (e.g., catchbasins, outfalls, culverts), set to None if IS_SOURCE and
+            IS_SINK are preconfigured in the storm_pts GeoDataFrame
         sink_types: list (default SINK_TYPES_VT)
             List of type values that correspond to flow sinks, where flow enters at
             these points, such as a catchbasin
@@ -152,14 +153,15 @@ class Network:
                 'storm_pts does not contain a column with provided index column '
                 f'name: {index_column}'
             )
-        elif type_column not in storm_pts.columns:
+        self.pts = storm_pts
+        self.pts.set_index(index_column, inplace=True)
+
+        # Deal with mapping of IS_SOURCE and IS_SINK in point data
+        if type_column is not None and type_column not in storm_pts.columns:
             raise ValueError(
                 'storm_pts does not contain a column with the provided type column '
                 f'name: {type_column}'
             )
-        self.pts = storm_pts
-        self.pts.set_index(index_column, inplace=True)
-
         if 'IS_SINK' in storm_pts.columns:
             if storm_pts.dtypes['IS_SINK'] != bool:
                 raise ValueError('storm_pts column "IS_SINK" must be bool dtype')

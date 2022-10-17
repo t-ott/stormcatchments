@@ -12,6 +12,19 @@ def net_johnson():
   return net
 
 
+@pytest.fixture
+def net_synthetic():
+  storm_lines = gpd.read_file('tests/test_data/synthetic/lines.shp')
+  storm_pts = gpd.read_file('tests/test_data/synthetic/pts.shp')
+
+  # Cast 0 | 1 integers to bool
+  storm_pts['IS_SINK'] = storm_pts['IS_SINK'].astype(bool)
+  storm_pts['IS_SOURCE'] = storm_pts['IS_SOURCE'].astype(bool)
+
+  net = network.Network(storm_lines, storm_pts, index_column='id', type_column=None)
+  return net
+
+
 def test_non_empty_graph_johnson(net_johnson):
   '''Ensure Network initialization generates non-empty graph'''
   net = net_johnson
@@ -116,3 +129,13 @@ def test_resolve_catchment_graphs_johnson(net_johnson):
     successors = [v for v in net.G.successors((x, y))]
     # There should be no nodes that are both predecessors and successors
     assert len(set(predecessors).intersection(successors)) == 0
+
+
+def test_consec_out_snyth(net_synthetic):
+  '''Test simple graph with two consecutive SOURCE/outfall points'''
+  net = net_synthetic
+  second_out_pt = net.pts.loc[13]
+  net.resolve_direction(second_out_pt)
+  first_out_pt_coords = tuple([net.pts.loc[14].geometry.x, net.pts.loc[14].geometry.y])
+  successors = [v for v in net.G.successors(first_out_pt_coords)]
+  assert len(successors) == 1
