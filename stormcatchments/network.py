@@ -133,6 +133,9 @@ class Network:
                     [round(x, coord_decimals), round(y, coord_decimals)]
                 ) for x, y in v_coords
             ]
+
+            # TODO: Only need to add both edges if resolve direction with from_sources
+            # method? Wait to do this?
             # Add edges in both directions between each vertex pair
             for u, v in zip(u_coords, v_coords):
                 self.G.add_edge(u, v)
@@ -202,6 +205,13 @@ class Network:
                 f'{pt.__class__.__name__}'
         return pt
 
+    def has_StormPoint(self, pt) -> bool:
+        '''Check if self.G contains a given StormPoint'''
+        pt = self.to_StormPoint(pt)
+        pt_x = pt.geometry.x
+        pt_y = pt.geometry.y
+        return self.G.has_node((pt_x, pt_y))
+
     def find_downstream_pt(self, pt) -> Optional['StormPoint']:
         '''Get a StormPoint containing the downstream/outlet point for a given point'''
         pt = self.to_StormPoint(pt)
@@ -229,7 +239,7 @@ class Network:
                 if downstream_pt is not None:
                     return downstream_pt
 
-    def resolve_direction(self, source_pt) -> None:
+    def resolve_upstream(self, source_pt) -> None:
         source_pt = self.to_StormPoint(source_pt)
         if not source_pt.IS_SOURCE:
             raise ValueError(
@@ -250,7 +260,7 @@ class Network:
         visited.add(v)
         for u in self.G.predecessors(v):
             if u not in visited:
-                # Only retain
+                # Only retain edge from u -> v
                 if self.G.has_edge(v, u):
                     assert self.G.has_edge(u, v)
                     self.G.remove_edge(v, u)
@@ -279,6 +289,50 @@ class Network:
                 # find this point's downstream_pt and resolve directions from there
                 downstream_pt = self.find_downstream_pt(pt)
                 self.resolve_direction(downstream_pt)
+
+    def resolve_from_sources(self) -> None:
+        '''
+        Resolve directions of all edges within the graph by traversing subgraphs
+        upstream from each flow source
+        '''
+        source_pts = self.pts[self.pts['IS_SOURCE']]
+        missing_pts = []
+
+        for pt in source_pts.itertuples(name='StormPoint'):
+            if not self.has_StormPoint(pt):
+                missing_pts.append(pt.Index)
+                continue
+            
+            self.resolve_upstream(pt)
+
+    def resolve_by_vertex_order(self, reverse=False) -> None:
+        '''
+        Resolve directions of all edges within the graph by using the order of verticies
+        within each StormLine
+
+        Parameters
+        ----------
+        reverse: bool (default False)
+            Set to True to set edge directions in the opposite direction of their vertex
+            order
+        '''
+        pass
+
+    def resolve_directions(self, method: str='from_sources') -> None:
+        '''
+        Attempt to resolve directions for all edges within the graph
+        '''
+        if method == 'from_sources':
+            self.resolve_from_sources()
+        elif method == 'vertex_order':
+            self.resolve_by_vertex_order()
+        elif method == 'vertex_order_r':
+            self.resolve_by_vertex_order(reverse=True)
+        else:
+            raise ValueError(
+                f'Method "{method}" is not a valid edge resolution method, must be '
+                '"from_sources", "vertex_order", or "vertex_order_r".'
+            )
 
     def get_outlet(self, pt_idx: int) -> Optional[int]:
         '''
@@ -334,6 +388,12 @@ class Network:
         ----------
         catchment: gpd.GeoDataFrame
             GeoDataFrame containing the current catchment polygon
+
+        Returns
+        -------
+        outlet_pts: gpd.GeoDataFrame
+            GeoDataFrame containing all the points that bring flow out of the current
+            catchment
         '''
         if catchment.crs != self.pts.crs:
             catchment = catchment.to_crs(crs=self.pts.crs)
