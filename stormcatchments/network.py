@@ -118,6 +118,7 @@ class Network:
         # edges connecting each node pair, one in each direction. Direction will be
         # revised later
         self.G = nx.DiGraph()
+        self.directions_resolved = False
         all_segments = {}
         for line in storm_lines.itertuples(name='StormLine'):
             u_coords = line.geometry.coords[:-1]
@@ -186,6 +187,7 @@ class Network:
             lambda geom: Point([get_point_coords(geom, coord_decimals)])
         )
 
+
     def to_StormPoint(self, pt) -> 'StormPoint':
         if isinstance(pt, gpd.GeoDataFrame):
             if len(pt) > 1:
@@ -201,9 +203,10 @@ class Network:
             pt = namedtuple('StormPoint', field_names)(pt.name, *pt)
         else:
             assert pt.__class__.__name__ == 'StormPoint', f'Expected pt to be a ' \
-                'gpd.GeoDataFrame or a StormPoint namedtuple, got a ' \
+                'gpd.GeoDataFrame, pd.Series, or a StormPoint namedtuple, but got a ' \
                 f'{pt.__class__.__name__}'
         return pt
+
 
     def has_StormPoint(self, pt) -> bool:
         '''Check if self.G contains a given StormPoint'''
@@ -211,6 +214,7 @@ class Network:
         pt_x = pt.geometry.x
         pt_y = pt.geometry.y
         return self.G.has_node((pt_x, pt_y))
+
 
     def find_downstream_pt(self, pt) -> Optional['StormPoint']:
         '''Get a StormPoint containing the downstream/outlet point for a given point'''
@@ -221,6 +225,7 @@ class Network:
         visited = set()
         downstream_pt = self.traverse_downstream((pt_x, pt_y), visited)
         return downstream_pt
+
 
     def traverse_downstream(self, coords: tuple, visited: set) -> Optional['StormPoint']:
         '''Utilize depth-first search to find an outfall/outlet point, '''
@@ -239,6 +244,7 @@ class Network:
                 if downstream_pt is not None:
                     return downstream_pt
 
+
     def resolve_upstream(self, source_pt) -> None:
         source_pt = self.to_StormPoint(source_pt)
         if not source_pt.IS_SOURCE:
@@ -251,6 +257,7 @@ class Network:
 
         visited = set()
         self.traverse_upstream((v_x, v_y), visited)
+
 
     def traverse_upstream(self, coords: tuple, visited: set) -> None:
         '''
@@ -266,29 +273,6 @@ class Network:
                     self.G.remove_edge(v, u)
                 self.traverse_upstream(u, visited)
 
-    def resolve_catchment_graph(self, catchment: gpd.GeoDataFrame) -> None:
-        '''
-        Resolve graph representations of all infrastructure networks that are within or
-        partially within a catchment
-
-        Parameters
-        ----------
-        catchment: gpd.GeoDataFrame
-            A GeoPandas GeoDataFrame with the catchment polygon
-        '''
-        # ensure CRS match
-        if catchment.crs != self.pts.crs:
-            catchment = catchment.to_crs(crs=self.pts.crs)
-
-        pts = gpd.clip(self.pts, catchment)
-        for pt in pts.itertuples(name='StormPoint'):
-            if pt.IS_SOURCE:
-                # is an outlet point, may bring flow into the catchment
-                self.resolve_direction(pt)
-            else:
-                # find this point's downstream_pt and resolve directions from there
-                downstream_pt = self.find_downstream_pt(pt)
-                self.resolve_direction(downstream_pt)
 
     def resolve_from_sources(self) -> None:
         '''
@@ -302,8 +286,11 @@ class Network:
             if not self.has_StormPoint(pt):
                 missing_pts.append(pt.Index)
                 continue
-            
+
             self.resolve_upstream(pt)
+
+        self.directions_resolved = True
+
 
     def resolve_by_vertex_order(self, reverse=False) -> None:
         '''
@@ -317,6 +304,7 @@ class Network:
             order
         '''
         pass
+
 
     def resolve_directions(self, method: str='from_sources') -> None:
         '''
@@ -334,6 +322,7 @@ class Network:
                 '"from_sources", "vertex_order", or "vertex_order_r".'
             )
 
+
     def get_outlet(self, pt_idx: int) -> Optional[int]:
         '''
         Get Index of the outlet for a given storm_pt whose coordinates exist in the
@@ -344,7 +333,11 @@ class Network:
         pt_idx: int
             Index of point, note that OBJECTID is the default index column
         '''
-        
+        if not self.directions_resolved:
+            raise ValueError(
+                f'Cannot get outlet as the graph directions are not resolved'
+            )
+
         pt_x, pt_y = get_point_coords(self.pts.loc[pt_idx].geometry)
         if (pt_x, pt_y) not in self.G:
             print(
@@ -378,6 +371,7 @@ class Network:
 
         return outlet_pts.iloc[0].name
 
+
     def get_outlet_points(self, catchment: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         '''
         Get GeoDataFrame of all the infrastructure points within the catchment that
@@ -410,6 +404,7 @@ class Network:
         
         return self.pts.loc[indicies_to_remove]
 
+
     def get_inlet_points(self, catchment: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         '''
         Get GeoDataFrame of all the infrastructure points outside the catchment that
@@ -426,6 +421,11 @@ class Network:
             GeoDataFrame containing all the points outside the catchment that bring flow
             into the catchment
         '''
+        if not self.directions_resolved:
+            raise ValueError(
+                f'Cannot get inlet points as the graph directions are not resolved'
+            )
+
         if catchment.crs != self.pts.crs:
             catchment = catchment.to_crs(crs=self.pts.crs)
 
@@ -449,6 +449,7 @@ class Network:
                     contrib_sink_inidices.add(pt.Index)
         
         return self.pts.loc[contrib_sink_inidices]
+
 
     def draw(self, extent: gpd.GeoDataFrame=None, ax=None, add_basemap: bool=True) -> 'plt.axes':
         '''
