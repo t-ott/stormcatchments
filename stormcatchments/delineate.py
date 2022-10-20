@@ -62,6 +62,7 @@ def get_catchment(
       {'geometry': gpd.GeoSeries(catch_polys).set_crs(epsg=grid_epsg)}
     )
 
+
 class Delineate:
   def __init__(
       self,
@@ -94,6 +95,7 @@ class Delineate:
     self.acc = acc
     self.grid_epsg = grid_epsg
 
+
   def get_catchment(self, pour_pt: tuple, acc_thresh: int=1000) -> gpd.GeoDataFrame:
     '''
     Delineate catchment using pysheds
@@ -111,7 +113,10 @@ class Delineate:
     catchment: gpd.GeoDataFrame
       A GeoDataFrame containing the newly delineated catchment polygon
     '''
-    return get_catchment(pour_pt, self.grid, self.fdir, self.acc, self.grid_epsg)
+    return get_catchment(
+      pour_pt, self.grid, self.fdir, self.acc, self.grid_epsg, acc_thresh=acc_thresh
+    )
+
 
   def delineate_points(
     self, pts: gpd.GeoDataFrame, delineated: set
@@ -175,7 +180,6 @@ class Delineate:
       A GeoDataFrame containing the newly delineated catchment polygon
     '''
     catchment = self.get_catchment(pour_pt, acc_thresh)
-    self.net.resolve_catchment_graph(catchment)
 
     # Keep track of all point indicies which have been delineated
     delineated = set()
@@ -205,7 +209,6 @@ class Delineate:
             catchment, inlet_catchments, how='union'
           ).set_crs(epsg=self.grid_epsg)
           catchment = catchment.dissolve()
-          self.net.resolve_catchment_graph(catchment)
         else:
           # empty inlet_pts
           inlet_pts = gpd.GeoDataFrame()
