@@ -89,6 +89,13 @@ class Delineate:
     grid_epsg: int
       EPSG code for the CRS of the DEM
     '''
+
+    if not network.directions_resolved:
+      raise ValueError(
+        f'Cannot generate stormcatchment until graph directions of the Network are '
+        'resolved'
+      )
+      
     self.net = network
     self.grid = grid
     self.fdir = fdir

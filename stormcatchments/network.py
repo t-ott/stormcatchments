@@ -135,13 +135,6 @@ class Network:
                 ) for x, y in v_coords
             ]
 
-            # TODO: Only need to add both edges if resolve direction with from_sources
-            # method? Wait to do this?
-            # Add edges in both directions between each vertex pair
-            for u, v in zip(u_coords, v_coords):
-                self.G.add_edge(u, v)
-                self.G.add_edge(v, u)
-
             segments = list(map(LineString, zip(u_coords, v_coords)))
             all_segments[line.Index] = segments
 
@@ -216,35 +209,6 @@ class Network:
         return self.G.has_node((pt_x, pt_y))
 
 
-    def find_downstream_pt(self, pt) -> Optional['StormPoint']:
-        '''Get a StormPoint containing the downstream/outlet point for a given point'''
-        pt = self.to_StormPoint(pt)
-        pt_x = pt.geometry.x
-        pt_y = pt.geometry.y
-
-        visited = set()
-        downstream_pt = self.traverse_downstream((pt_x, pt_y), visited)
-        return downstream_pt
-
-
-    def traverse_downstream(self, coords: tuple, visited: set) -> Optional['StormPoint']:
-        '''Utilize depth-first search to find an outfall/outlet point, '''
-        x, y = coords
-        visited.add((x, y))
-
-        for n in self.G.neighbors((x, y)):
-            n_pt = self.pts.cx[n[0], n[1]]
-            if not n_pt.empty:
-                n_pt = self.to_StormPoint(n_pt)
-                if n_pt.IS_SOURCE:
-                    # search complete
-                    return n_pt
-            if n not in visited:
-                downstream_pt = self.traverse_downstream(n, visited)
-                if downstream_pt is not None:
-                    return downstream_pt
-
-
     def resolve_upstream(self, source_pt) -> None:
         source_pt = self.to_StormPoint(source_pt)
         if not source_pt.IS_SOURCE:
@@ -274,11 +238,29 @@ class Network:
                 self.traverse_upstream(u, visited)
 
 
+    def add_edges(self, direction: str) -> None:
+        if direction == 'both' or direction == 'original':
+            self.segments['geometry'].apply(
+                lambda seg: self.G.add_edge(seg.coords[0], seg.coords[1])
+            )
+        elif direction == 'both' or direction == 'reverse':
+            self.segments['geometry'].apply(
+                lambda seg: self.G.add_edge(seg.coords[1], seg.coords[0])
+            )
+        else:
+            raise ValueError(
+                f'direction "{direction}" is invalid, must be "both", "original", or '
+                '"reverse"'
+            )
+
+
     def resolve_from_sources(self) -> None:
         '''
         Resolve directions of all edges within the graph by traversing subgraphs
         upstream from each flow source
         '''
+        self.add_edges(direction='both')
+
         source_pts = self.pts[self.pts['IS_SOURCE']]
         missing_pts = []
 
@@ -289,38 +271,37 @@ class Network:
 
             self.resolve_upstream(pt)
 
-        self.directions_resolved = True
-
-
-    def resolve_by_vertex_order(self, reverse=False) -> None:
-        '''
-        Resolve directions of all edges within the graph by using the order of verticies
-        within each StormLine
-
-        Parameters
-        ----------
-        reverse: bool (default False)
-            Set to True to set edge directions in the opposite direction of their vertex
-            order
-        '''
-        pass
-
 
     def resolve_directions(self, method: str='from_sources') -> None:
         '''
         Attempt to resolve directions for all edges within the graph
+
+        Parameters
+        ----------
+        method: str (default 'from_sources')
+            Method to resolve edge directions for self.G, can be one of the following:
+            - 'from_sources': Traverses upstream from each outlet point (where 
+                self.pts['IS_SOURCE'] == True) to define edge directions to point to
+                outlets
+            - 'vertex_order': Defines edge directions using the order of verticies in
+                self.lines 
+            - 'vertex_order_r': Defines edge directions using reverse order of verticies
+                in self.lines
         '''
+
         if method == 'from_sources':
             self.resolve_from_sources()
         elif method == 'vertex_order':
-            self.resolve_by_vertex_order()
+            self.add_edges(direction='original')
         elif method == 'vertex_order_r':
-            self.resolve_by_vertex_order(reverse=True)
+            self.add_edges(direction='reverse')
         else:
             raise ValueError(
                 f'Method "{method}" is not a valid edge resolution method, must be '
                 '"from_sources", "vertex_order", or "vertex_order_r".'
             )
+
+        self.directions_resolved = True
 
 
     def get_outlet(self, pt_idx: int) -> Optional[int]:
@@ -335,12 +316,12 @@ class Network:
         '''
         if not self.directions_resolved:
             raise ValueError(
-                f'Cannot get outlet as the graph directions are not resolved'
+                f'Cannot get outlet until graph directions are resolved'
             )
 
         pt_x, pt_y = get_point_coords(self.pts.loc[pt_idx].geometry)
         if (pt_x, pt_y) not in self.G:
-            print(
+            warnings.warn(
                 f'The point with index {pt_idx} does not have its coordinates as a '
                 'node in the graph'
             )
@@ -359,10 +340,7 @@ class Network:
         outlet_x, outlet_y = outlet_coords[0]
         outlet_pts = self.pts.cx[outlet_x, outlet_y] # gpd.GeoDataFrame
         if len(outlet_pts) == 0:
-            raise ValueError(
-                'No point present at the outlet coordinate for point with index '
-                '{pt_idx}'
-            )
+            return None
         elif len(outlet_pts) > 1:
             warnings.warn(
                 f'Multiple outlet coordinates found for point with index {pt_idx}, '
@@ -423,7 +401,7 @@ class Network:
         '''
         if not self.directions_resolved:
             raise ValueError(
-                f'Cannot get inlet points as the graph directions are not resolved'
+                f'Cannot get inlet points until graph directions are resolved'
             )
 
         if catchment.crs != self.pts.crs:
@@ -461,6 +439,7 @@ class Network:
             GeoDataFrame whose extent will be used to trim the infrastructure data
         
         ax: plt.axes | None (default None)
+            Matplotlib axes object to utilize for plot
         
         add_basemap: bool (deafult True)
             Option to add a contextily basemap to the plot
@@ -480,8 +459,6 @@ class Network:
             if extent.crs != self.crs:
                 extent = extent.to_crs(self.crs)
             envelope = extent['geometry'].envelope.iloc[0]
-
-        # bidirectional_edges = [edge for edge in self.G.edges() if ]
 
         bidirectional_edges = []
         directional_edges = []

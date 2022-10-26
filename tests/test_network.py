@@ -28,6 +28,7 @@ def net_synthetic():
 def test_non_empty_graph_johnson(net_johnson):
   '''Ensure Network initialization generates non-empty graph'''
   net = net_johnson
+  net.resolve_directions()
   assert not net.segments.empty
   assert net.G.number_of_nodes() > 0
 
@@ -38,6 +39,7 @@ def test_line_segmentation_johnson(net_johnson):
   within 0.1m
   '''
   net = net_johnson
+  net.resolve_directions()
   assert round(
     net.lines.geometry.length.sum(), 1
   ) == round(
@@ -48,6 +50,7 @@ def test_line_segmentation_johnson(net_johnson):
 def test_points_in_graph_johnson(net_johnson):
   '''Ensure coordinates of various storm_points are present as nodes within the graph'''
   net = net_johnson
+  net.resolve_directions()
   for idx in [20845, 244244, 21135, 244947, 244275]:
     x, y = network.get_point_coords(net.pts.loc[idx].geometry)
     assert net.G.has_node((x, y))
@@ -59,8 +62,7 @@ def test_resolve_direction_simple_johnson(net_johnson):
   edges present are in the correct direction of flow for that subgraph
   '''
   net = net_johnson
-  outfall_pt = net.pts.loc[244244]
-  net.resolve_direction(outfall_pt)
+  net.resolve_directions()
 
   edges = {244374: 244244, 244900: 244374}
   for u, v in edges.items():
@@ -78,8 +80,7 @@ def test_resolve_direction_complex_johnson(net_johnson):
   that the only edges present are in the correct direction of flow for that subgraph
   '''
   net = net_johnson
-  outfall_pt = net.pts.loc[21134]
-  net.resolve_direction(outfall_pt)
+  net.resolve_directions()
   
   edges = {20845: 21134, 20846: 20845, 20847: 20846, 21135: 20845}
   for u, v in edges.items():
@@ -97,29 +98,21 @@ def test_get_outlet_johnson(net_johnson):
   identified
   '''
   net = net_johnson
-  outfall_pt = net.pts.loc[21134]
-  net.resolve_direction(outfall_pt)
+  net.resolve_directions()
   assert net.get_outlet(20847) == 21134
 
 
-def test_find_downstream_simple_johnson(net_johnson):
-  '''Ensure the proper downstream point is found for a SINK point'''
-  net = net_johnson
-  upstream_pt = net.pts.loc[245051]
-  downstream_pt = net.find_downstream_pt(upstream_pt)
-  assert downstream_pt.Index == 244132
-
-
-def test_resolve_catchment_graphs_johnson(net_johnson):
+def test_resolve_catchment_johnson(net_johnson):
   '''
   Test that resolve_catchment_graph removes all bidirectional edges within the
   catchment, meaning the flow directions for the catchment subgraph have been fully
   resolved / have no ambiguity 
   '''
-  net = net_johnson
   catchment = gpd.read_file('tests/test_data/johnson_vt/initial_catchment.shp')
-  net.resolve_catchment_graph(catchment)
 
+  net = net_johnson
+  net.resolve_directions()
+  
   # Check each point within the catchment to ensure it has no bidirectional edges
   catchment = catchment.to_crs(net.crs)
   catchment_pts = gpd.clip(net.pts, catchment)
@@ -131,11 +124,14 @@ def test_resolve_catchment_graphs_johnson(net_johnson):
     assert len(set(predecessors).intersection(successors)) == 0
 
 
-def test_consec_out_snyth(net_synthetic):
+def test_consec_out_synth(net_synthetic):
   '''Test simple graph with two consecutive SOURCE/outfall points'''
   net = net_synthetic
-  second_out_pt = net.pts.loc[13]
-  net.resolve_direction(second_out_pt)
+  net.resolve_directions()
   first_out_pt_coords = tuple([net.pts.loc[14].geometry.x, net.pts.loc[14].geometry.y])
   successors = [v for v in net.G.successors(first_out_pt_coords)]
   assert len(successors) == 1
+
+# TODO:
+# Add tests for other direction resolution methods
+# Add more tests for the synthetic testing data

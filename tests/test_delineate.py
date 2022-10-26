@@ -10,17 +10,20 @@ def delineate_johnson():
   storm_lines = gpd.read_file('tests/test_data/johnson_vt/storm_lines.shp')
   storm_pts = gpd.read_file('tests/test_data/johnson_vt/storm_pts.shp')
   net = network.Network(storm_lines, storm_pts)
+  net.resolve_directions()
 
   # pysheds DEM loading, conditioning, and preprocessing
   grid, fdir, acc = terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
 
   return delineate.Delineate(net, grid, fdir, acc, 6589)
 
+
 def test_get_catchment(delineate_johnson):
   delin = delineate_johnson
   pour_pt = (484636, 237170)
   catchment = delin.get_catchment(pour_pt)
   assert round(catchment.area.values[0]) == 6796
+
 
 def test_get_stormcatchment(delineate_johnson):
   delin = delineate_johnson
