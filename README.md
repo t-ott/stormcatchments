@@ -45,13 +45,17 @@ grid, fdir, acc = terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
 storm_lines = gpd.read_file('tests/test_data/johnson_vt/storm_lines.shp')
 storm_pts = gpd.read_file('tests/test_data/johnson_vt/storm_pts.shp')
 ```
-### Initialize Network and Delineate objects
+### Initialize Network object
 ```python
 net = network.Network(storm_lines, storm_pts)
-delin = delineate.Delineate(net, grid, fdir, acc, 6589)
+net.resolve_directions(method='from_sources')
 ```
-### Delineate a stormcatchment
+
+### Initialize Delineate object and get a stormcatchment
 ```python
+grid_epsg = 6589
+delin = delineate.Delineate(net, grid, fdir, acc, grid_epsg)
+
 # (x, y) coordinates in same CRS as grid
 pour_pt = (484636, 237170)
 stormcatchment = delin.get_stormcatchment(pour_pt)
