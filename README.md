@@ -36,10 +36,6 @@ surface.
 import geopandas as gpd
 from stormcatchments import delineate, network, terrain
 ```
-### Preprocess terrain data
-```python
-grid, fdir, acc = terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
-```
 ### Read infrastructure data
 ```python
 storm_lines = gpd.read_file('tests/test_data/johnson_vt/storm_lines.shp')
@@ -50,7 +46,10 @@ storm_pts = gpd.read_file('tests/test_data/johnson_vt/storm_pts.shp')
 net = network.Network(storm_lines, storm_pts)
 net.resolve_directions(method='from_sources')
 ```
-
+### Preprocess terrain data
+```python
+grid, fdir, acc = terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
+```
 ### Initialize Delineate object and get a stormcatchment
 ```python
 grid_epsg = 6589
