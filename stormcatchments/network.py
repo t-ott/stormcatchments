@@ -22,9 +22,9 @@ def get_point_coords(pt_geom, decimals: int=None) -> tuple:
 
     Parameters
     ----------
-    pt_geom: Point | MultiPoint
+    pt_geom : Point | MultiPoint
         shapely geometry object containing a point coordinate
-    decimals: int (default None)
+    decimals : int (default None)
         Number of decimals to round coordinates to
     '''
     if isinstance(pt_geom, Point):
@@ -56,16 +56,19 @@ class Network:
     
     Attributes:
     -----------
+    crs : pyproj.crs.crs.CRS
+        The PyProj Coordinate Reference System of infrastructure data
     lines : gpd.GeoDataFrame
         All the stormwater infrastructure line features within the area of interest
+    G : nx.DiGraph
+        A list of all the graphs generated within the area of interest
+    direction_resolved : bool
+        Checks if Network is fully initialized and usable, equals True if directions of
+        the edges in self.G have been resolved
     segments : gpd.GeoDataFrame
         All the stormwater infrastructure line geometry split into segments
     pts : gpd.GeoDataFrame
         All the stormwater infrastructure point features within the area of interest
-    G : nx.DiGraph
-        A list of all the graphs generated within the area of interest
-    crs : pyproj.crs.crs.CRS
-        The PyProj Coordinate Reference System of infrastructure data
     '''
     def __init__(
         self,
@@ -80,22 +83,22 @@ class Network:
         '''
         Parameters:
         ----------
-        storm_lines: gpd.GeoDataFrame
+        storm_lines : gpd.GeoDataFrame
             All the stormwater infrastructure line features within the area of interest
-        storm_pts: gpd.GeoDataFrame
+        storm_pts : gpd.GeoDataFrame
             All the stormwater infrastructure points features within the area of interest
-        coord_decimals: int (default 3)
+        coord_decimals : int (default 3)
             Decimal to round line coordinates too, prevents problems with improper snapping
-        index_column: str (default 'OBJECTID')
-            Column name in storm_pts 
-        type_column: str | None (default 'Type')
+        index_column : str (default 'OBJECTID')
+            Column name in storm_pts to set index of GeoDataFrame to
+        type_column : str | None (default 'Type')
             Column in storm_pts GeoDataFrame that represents the type of each point
             (e.g., catchbasins, outfalls, culverts), set to None if IS_SOURCE and
             IS_SINK are preconfigured in the storm_pts GeoDataFrame
-        sink_types: list (default SINK_TYPES_VT)
+        sink_types : list (default SINK_TYPES_VT)
             List of type values that correspond to flow sinks, where flow enters at
             these points, such as a catchbasin
-        source_types: list (default SOURCE_TYPES_VT)
+        source_types : list (default SOURCE_TYPES_VT)
             List of type values that correspond to flow sources, where flow exits at
             these points, such as an outfall 
         '''
@@ -182,10 +185,23 @@ class Network:
 
 
     def to_StormPoint(self, pt) -> 'StormPoint':
+        '''
+        Converts point data from various types to a StormPoint namedtuple
+
+        Parameters
+        ----------
+        pt : gpd.GeoDataFrame | pd.Series | StormPoint (namedtuple)
+            Point data to convert to namedtuple
+        
+        Returns
+        -------
+        pt : StormPoint (namedtuple)
+            Point data as a StormPoint namedtuple
+        '''
         if isinstance(pt, gpd.GeoDataFrame):
             if len(pt) > 1:
                 warnings.warn(
-                    '_init_traverse() got multiple points, only keeping the first'
+                    'to_StormPoint() got multiple points, only keeping the first'
                 )
             pt_iter = pt.itertuples(name='StormPoint')
             pt = next(pt_iter)
@@ -202,7 +218,19 @@ class Network:
 
 
     def has_StormPoint(self, pt) -> bool:
-        '''Check if self.G contains a given StormPoint'''
+        '''
+        Check if self.G contains a given StormPoint
+
+        Parameters
+        ----------
+        pt : gpd.GeoDataFrame | pd.Series | StormPoint (namedtuple)
+            Point whose cooridnate pair will searched for in self.G
+
+        Returns
+        -------
+        has_node : bool
+            True if the pt's coordinate pair is present as a node in self.G
+        '''
         pt = self.to_StormPoint(pt)
         pt_x = pt.geometry.x
         pt_y = pt.geometry.y
@@ -210,6 +238,15 @@ class Network:
 
 
     def resolve_upstream(self, source_pt) -> None:
+        '''
+        Initializiton function for traverse_upstream, prepares arguments for depth-first
+        search
+
+        Parameters
+        ----------
+        source_pt : gpd.GeoDataFrame | pd.Series | StormPoint (namedtuple)
+            Infrastructure point which is a flow source/discharge point (IS_SOURCE=True)
+        '''
         source_pt = self.to_StormPoint(source_pt)
         if not source_pt.IS_SOURCE:
             raise ValueError(
@@ -225,7 +262,17 @@ class Network:
 
     def traverse_upstream(self, coords: tuple, visited: set) -> None:
         '''
-        Revise direction of edges via depth-first search, starting from an outlet
+        Revise direction of edges via recursive depth-first search, starting from an
+        outlet then traverse the graph "upstream". Visits every node that's connected to
+        the initial source node.
+
+        Parameters
+        ----------
+        coords : tuple
+            Tuple of current (x, y) float coordinates. These coordinates are the
+            name/index of the nodes in self.G
+        visited : set
+            Used to record which coordinates have already been visited in this search
         '''
         v = coords
         visited.add(v)
@@ -239,6 +286,17 @@ class Network:
 
 
     def add_edges(self, direction: str) -> None:
+        '''
+        Utilize user storm line data to add edges (and their nodes) to self.G in one or
+        both directions
+
+        Parameters
+        ----------
+        direction : str
+            Direction to add edges in, based on the order of verticies in the user's
+            stormwater infrastructure line data (self.lines & self.segments). Can be
+            'both', 'original', or 'reverse'
+        '''
         if direction == 'both' or direction == 'original':
             self.segments['geometry'].apply(
                 lambda seg: self.G.add_edge(seg.coords[0], seg.coords[1])
@@ -278,7 +336,7 @@ class Network:
 
         Parameters
         ----------
-        method: str (default 'from_sources')
+        method : str (default 'from_sources')
             Method to resolve edge directions for self.G, can be one of the following:
             - 'from_sources': Traverses upstream from each outlet point (where 
                 self.pts['IS_SOURCE'] == True) to define edge directions to point to
@@ -288,7 +346,6 @@ class Network:
             - 'vertex_order_r': Defines edge directions using reverse order of verticies
                 in self.lines
         '''
-
         if method == 'from_sources':
             self.resolve_from_sources()
         elif method == 'vertex_order':
@@ -311,7 +368,7 @@ class Network:
 
         Parameters
         ----------
-        pt_idx: int
+        pt_idx : int
             Index of point, note that OBJECTID is the default index column
         '''
         if not self.directions_resolved:
@@ -358,12 +415,12 @@ class Network:
 
         Parameters
         ----------
-        catchment: gpd.GeoDataFrame
+        catchment : gpd.GeoDataFrame
             GeoDataFrame containing the current catchment polygon
 
         Returns
         -------
-        outlet_pts: gpd.GeoDataFrame
+        outlet_pts : gpd.GeoDataFrame
             GeoDataFrame containing all the points that bring flow out of the current
             catchment
         '''
@@ -390,12 +447,12 @@ class Network:
 
         Parameters
         ----------
-        catchment: gpd.GeoDataFrame
+        catchment : gpd.GeoDataFrame
             GeoDataFrame containing the current catchment polygon
 
         Returns
         -------
-        inlet_pts: gpd.GeoDataFrame
+        inlet_pts : gpd.GeoDataFrame
             GeoDataFrame containing all the points outside the catchment that bring flow
             into the catchment
         '''
@@ -429,19 +486,21 @@ class Network:
         return self.pts.loc[contrib_sink_inidices]
 
 
-    def draw(self, extent: gpd.GeoDataFrame=None, ax=None, add_basemap: bool=True) -> 'plt.axes':
+    def draw(
+        self, extent: gpd.GeoDataFrame=None, ax=None, add_basemap: bool=False
+    ) -> 'plt.axes':
         '''
         Draw the Graph using the geographic coordinates of each node
 
         Parameters
         ----------
-        extent: gpd.GeoDataFrame (default None)
+        extent : gpd.GeoDataFrame (default None)
             GeoDataFrame whose extent will be used to trim the infrastructure data
         
-        ax: plt.axes | None (default None)
+        ax : plt.axes | None (default None)
             Matplotlib axes object to utilize for plot
         
-        add_basemap: bool (deafult True)
+        add_basemap : bool (deafult False)
             Option to add a contextily basemap to the plot
         '''
         import matplotlib.pyplot as plt
