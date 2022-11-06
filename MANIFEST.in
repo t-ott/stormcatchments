@@ -1,0 +1,10 @@
+include *.txt
+recursive-include img *.png
+recursive-include stormcatchments *.py
+recursive-include tests *.cpg
+recursive-include tests *.dbf
+recursive-include tests *.prj
+recursive-include tests *.py
+recursive-include tests *.shp
+recursive-include tests *.shx
+recursive-include tests *.tif
