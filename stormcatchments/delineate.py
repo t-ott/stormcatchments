@@ -160,7 +160,7 @@ class Delineate:
         x = pt.geometry.x
         y = pt.geometry.y
         pt_catchment = self.get_catchment((x, y))
-        catchments = catchments.append(pt_catchment)
+        catchments = gpd.pd.concat([catchments, pt_catchment], ignore_index=True)
 
     if not catchments.empty:
       catchments = catchments.set_crs(epsg=self.grid_epsg)
@@ -215,7 +215,7 @@ class Delineate:
         )
         if not inlet_catchments.empty:
           catchment = gpd.overlay(
-            catchment, inlet_catchments, how='union'
+            catchment, inlet_catchments, how='union', keep_geom_type=False
           ).set_crs(epsg=self.grid_epsg)
           catchment = catchment.dissolve()
         else:

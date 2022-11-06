@@ -15,17 +15,24 @@ Similar libraries/projects:
 - [```networkx``` module ```nx_shp.py```](https://github.com/networkx/networkx/blob/6e20b952a957af820990f68d9237609198088816/networkx/readwrite/nx_shp.py)
 
 
+## Installation
+
+To install from PyPI:
+```
+pip install stormcatchments
+```
+
 ## Input data requirements
 
-To utilize this package, you need both **point** and **line** spatial data, which could represent a network of catchbasins and stormlines. The format does not matter as long as it can be successfully read into a ```geopandas.GeoDataFrame```. The line data must connect to the points, and lines must have verticies snapped to the points.
-This was initially developed for [Vermont Agency of Natural Resources stormwater infrastructure dataset](https://gis-vtanr.hub.arcgis.com/maps/VTANR::stormwater-infrastructure/explore?location=43.609172%2C-72.968811%2C14.15), so some default parameters (such as the mapping of ```IS_SINK``` and ```IS_SOURCE``` in point data) are configured specifically for this dataset. However, the package should be usable for other datasets.
+To utilize this package, you need both **point** and **line** spatial data, which could represent a network of catchbasins and stormlines. The file format does not matter as long as it can be successfully read into a ```geopandas.GeoDataFrame```. The line data must connect to the points, and lines must have verticies snapped to the points.
+This was initially developed for [Vermont Agency of Natural Resources stormwater infrastructure dataset](https://gis-vtanr.hub.arcgis.com/maps/VTANR::stormwater-infrastructure/explore?location=43.609172%2C-72.968811%2C14.15). However, the package is indented to generalize to any infrastructure dataset that meets these basic requirements.
 
 
 ## Mapping ```IS_SINK``` and ```IS_SOURCE```
 
 Flow sinks are where flow can enter a subsurface system (such as a catchbasin). Flow sources are where flow can exit a subsurface system (such as an outfall). Initializing the ```network.Network``` requires either:
-- Defining a ```type_column``` in the point data, then supplying a ```list``` of ```sink_types``` and a ```list``` of ```source_types``` to lookup in the ```type_column```. This will then be mapped onto two ```bool``` columns in the point data named ```IS_SINK``` and ```IS_SOURCE```.
 - Manually setting two ```bool``` columns in the point ```GeoDataFrame```, named ```IS_SINK``` and ```IS_SOURCE``` that are set to ```True``` if a point falls into either category.
+- Defining a ```type_column``` in the point data, then supplying a ```list``` of ```sink_types``` and a ```list``` of ```source_types``` to lookup in the ```type_column```. This will then be mapped onto two ```bool``` columns in the point data named ```IS_SINK``` and ```IS_SOURCE```.
 
 
 ## Determining subsurface flow direction
@@ -50,17 +57,27 @@ from stormcatchments import delineate, network, terrain
 ### Read infrastructure data
 ```python
 storm_lines = gpd.read_file('tests/test_data/johnson_vt/storm_lines.shp')
+storm_lines.set_index('OBJECTID', inplace=True)
 storm_pts = gpd.read_file('tests/test_data/johnson_vt/storm_pts.shp')
+storm_pts.set_index('OBJECTID', inplace=True)
 ```
-### Initialize Network object
+### Initialize Network object and resolve directions
 ```python
-net = network.Network(storm_lines, storm_pts)
+# storm_pts contains a column "Type" with integer values describing what type of 
+# structure each point is
+sinks = [2, 8] # Corresponds to catchbasins and culvert inlets
+sources = [5, 9] # Corresponds to outfalls and culvert outlets
+
+net = network.Network(
+  storm_lines, storm_pts, type_column='Type', sink_types=sinks, source_types=sources
+)
 net.resolve_directions(method='from_sources')
 ```
 ### Preprocess terrain data
 ```python
 grid, fdir, acc = terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
 ```
+Note that ```terrain.preprocess_dem()``` uses default settings for ```pysheds```. Feel free to experiment with this step to try and improve results with your terrain data.
 ### Initialize Delineate object and get a stormcatchment
 ```python
 grid_epsg = 6589
@@ -75,7 +92,8 @@ stormcatchment = delin.get_stormcatchment(pour_pt)
 catchment = delineate.get_catchment(pour_pt, grid, fdir, acc, 6589)
 ```
 ### Plot original catchment in blue and stormcatchment in orange
-This uses the built-in ```net.draw()``` method, which adds a ```contextily``` basemap when ```add_basemap=True```.
+This uses the built-in ```net.draw()``` method, which adds a ```contextily``` basemap when ```add_basemap=True```. Note that the orange stormcatchment incorporates a large hillside 
+that pipes to the pour point.
 ```python
 fig, ax = plt.subplots(figsize=(8, 8))
 stormcatchment.plot(ax=ax, ec='orange', fc='orange', alpha=0.7, linewidth=3)

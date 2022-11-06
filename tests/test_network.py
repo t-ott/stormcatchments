@@ -3,12 +3,21 @@ import networkx as nx
 import pytest
 
 from stormcatchments import network
+from stormcatchments.constants import SINK_TYPES_VT, SOURCE_TYPES_VT
 
 @pytest.fixture
 def net_johnson():
   storm_lines = gpd.read_file('tests/test_data/johnson_vt/storm_lines.shp')
+  storm_lines.set_index('OBJECTID', inplace=True)
   storm_pts = gpd.read_file('tests/test_data/johnson_vt/storm_pts.shp')
-  net = network.Network(storm_lines, storm_pts)
+  storm_pts.set_index('OBJECTID', inplace=True)
+  net = network.Network(
+    storm_lines,
+    storm_pts,
+    type_column='Type',
+    sink_types=SINK_TYPES_VT,
+    source_types=SOURCE_TYPES_VT
+  )
   return net
 
 
@@ -16,12 +25,13 @@ def net_johnson():
 def net_synthetic():
   storm_lines = gpd.read_file('tests/test_data/synthetic/lines.shp')
   storm_pts = gpd.read_file('tests/test_data/synthetic/pts.shp')
+  storm_pts.set_index('id', inplace=True)
 
   # Cast 0 | 1 integers to bool
   storm_pts['IS_SINK'] = storm_pts['IS_SINK'].astype(bool)
   storm_pts['IS_SOURCE'] = storm_pts['IS_SOURCE'].astype(bool)
 
-  net = network.Network(storm_lines, storm_pts, index_column='id', type_column=None)
+  net = network.Network(storm_lines, storm_pts)
   return net
 
 
