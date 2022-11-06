@@ -3,13 +3,22 @@ from shapely.geometry import Point
 import pytest
 
 from stormcatchments import network, delineate, terrain
+from stormcatchments.constants import SINK_TYPES_VT, SOURCE_TYPES_VT
 
 @pytest.fixture
 def delineate_johnson():
   # construct Network
   storm_lines = gpd.read_file('tests/test_data/johnson_vt/storm_lines.shp')
+  storm_lines.set_index('OBJECTID', inplace=True)
   storm_pts = gpd.read_file('tests/test_data/johnson_vt/storm_pts.shp')
-  net = network.Network(storm_lines, storm_pts)
+  storm_pts.set_index('OBJECTID', inplace=True)
+  net = network.Network(
+    storm_lines,
+    storm_pts,
+    type_column='Type',
+    sink_types=SINK_TYPES_VT,
+    source_types=SOURCE_TYPES_VT
+  )
   net.resolve_directions()
 
   # pysheds DEM loading, conditioning, and preprocessing

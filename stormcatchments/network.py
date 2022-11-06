@@ -6,15 +6,6 @@ from typing import Optional
 from shapely.geometry import LineString, MultiPoint, Point
 import warnings
 
-SINK_TYPES_VT = [   
-    2, # Catchbasin
-    8, # Culvert inlet
-]
-
-SOURCE_TYPES_VT = [
-    5, # Outfall
-    9, # Culvert outlet
-]
 
 def get_point_coords(pt_geom, decimals: int=None) -> tuple:
     '''
@@ -75,10 +66,9 @@ class Network:
         storm_lines: gpd.GeoDataFrame,
         storm_pts: gpd.GeoDataFrame,
         coord_decimals: int=3,
-        index_column: str='OBJECTID',
-        type_column: Optional[str]='Type',
-        sink_types: list=SINK_TYPES_VT,
-        source_types: list=SOURCE_TYPES_VT,
+        type_column: Optional[str]=None,
+        sink_types: Optional[list]=None,
+        source_types: Optional[list]=None,
     ):
         '''
         Parameters:
@@ -89,16 +79,14 @@ class Network:
             All the stormwater infrastructure points features within the area of interest
         coord_decimals : int (default 3)
             Decimal to round line coordinates too, prevents problems with improper snapping
-        index_column : str (default 'OBJECTID')
-            Column name in storm_pts to set index of GeoDataFrame to
-        type_column : str | None (default 'Type')
+        type_column : str | None (default None)
             Column in storm_pts GeoDataFrame that represents the type of each point
             (e.g., catchbasins, outfalls, culverts), set to None if IS_SOURCE and
             IS_SINK are preconfigured in the storm_pts GeoDataFrame
-        sink_types : list (default SINK_TYPES_VT)
+        sink_types : list (default None)
             List of type values that correspond to flow sinks, where flow enters at
             these points, such as a catchbasin
-        source_types : list (default SOURCE_TYPES_VT)
+        source_types : list (default None)
             List of type values that correspond to flow sources, where flow exits at
             these points, such as an outfall 
         '''
@@ -108,14 +96,7 @@ class Network:
             )
         self.crs = storm_pts.crs
 
-        if index_column not in storm_lines:
-            raise ValueError(
-                'storm_lines does not contain the specified index column named: '
-                f'{index_column}'
-            )
         self.lines = storm_lines
-        storm_lines = storm_lines.set_index(index_column)
-
         # Explode all lines into 2-vertex segments, add these as edges in a directional
         # graph with coordinate tuples as nodes. The DiGraph will initialize with two
         # edges connecting each node pair, one in each direction. Direction will be
@@ -145,35 +126,48 @@ class Network:
         self.segments = gpd.GeoDataFrame()
         for src_index, segments in all_segments.items():
             segments = gpd.GeoDataFrame(geometry=gpd.GeoSeries(segments), crs=self.crs)
-            segments[index_column] = src_index
-            self.segments = self.segments.append(segments, ignore_index=True)
+            segments['src_index'] = src_index
+            # segments[index_column] = src_index
+            self.segments = gpd.pd.concat([self.segments, segments], ignore_index=True)
 
-        if index_column not in storm_pts.columns:
-            raise ValueError(
-                'storm_pts does not contain a column with provided index column '
-                f'name: {index_column}'
-            )
         self.pts = storm_pts
-        self.pts.set_index(index_column, inplace=True)
-
         # Deal with mapping of IS_SOURCE and IS_SINK in point data
-        if type_column is not None and type_column not in storm_pts.columns:
-            raise ValueError(
-                'storm_pts does not contain a column with the provided type column '
-                f'name: {type_column}'
-            )
-        if 'IS_SINK' in storm_pts.columns:
-            if storm_pts.dtypes['IS_SINK'] != bool:
-                raise ValueError('storm_pts column "IS_SINK" must be bool dtype')
+        if type_column is None:
+            # User supplied SINK and SOURCE data
+            if 'IS_SINK' not in self.pts.columns:
+                raise ValueError(
+                    'Column "IS_SINK" not present in point data. Supply a bool column '
+                    'named "IS_SINK" or supply a type_column and list of sink_types to '
+                    'map onto "IS_SINK"'
+                )
+            elif self.pts.dtypes['IS_SINK'] != bool:
+                raise ValueError('Column "IS_SINK" must be bool')
+            elif 'IS_SOURCE' not in self.pts.columns:
+                raise ValueError(
+                    'Column "IS_SOURCE" not present in point data. Supply a bool '
+                    'column named "IS_SOURCE" or supply a type_column and list of '
+                    'source_types to map onto "IS_SOURCE"'                    
+                )
+            elif self.pts.dtypes['IS_SOURCE'] != bool:
+                raise ValueError('Column "IS_SOURCE" must be bool')
         else:
+            # Need to map SINK and SOURCE data
+            if type_column not in self.pts.columns:
+                raise ValueError(
+                    f'type_column "{type_column}" not present in point data'
+                )
+            elif sink_types is None:
+                raise ValueError(
+                    'To map data to IS_SINK a sink_types argument is required'
+                )
+            elif source_types is None:
+                raise ValueError(
+                    'To map data to IS_SOURCE a source_type argument is required'
+                )
+
             self.pts['IS_SINK'] = self.pts[type_column].apply(
                 lambda x: True if x in sink_types else False
             )
-
-        if 'IS_SOURCE' in storm_pts.columns:
-            if storm_pts.dtypes['IS_SOURCE'] != bool:
-                raise ValueError('storm_pts column "IS_SOURCE" must be bool dtype')
-        else:
             self.pts['IS_SOURCE'] = self.pts[type_column].apply(
                 lambda x: True if x in source_types else False
             )
@@ -483,7 +477,7 @@ class Network:
                     pt = self.to_StormPoint(pt)
                     contrib_sink_inidices.add(pt.Index)
         
-        return self.pts.loc[contrib_sink_inidices]
+        return self.pts.loc[list(contrib_sink_inidices)]
 
 
     def draw(
