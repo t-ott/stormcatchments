@@ -28,25 +28,6 @@ To utilize this package, you need both **point** and **line** spatial data, whic
 This was initially developed for [Vermont Agency of Natural Resources stormwater infrastructure dataset](https://gis-vtanr.hub.arcgis.com/maps/VTANR::stormwater-infrastructure/explore?location=43.609172%2C-72.968811%2C14.15). However, the package is indented to generalize to any infrastructure dataset that meets these basic requirements.
 
 
-## Mapping ```IS_SINK``` and ```IS_SOURCE```
-
-Flow sinks are where flow can enter a subsurface system (such as a catchbasin). Flow sources are where flow can exit a subsurface system (such as an outfall). Initializing the ```network.Network``` requires either:
-- Manually setting two ```bool``` columns in the point ```GeoDataFrame```, named ```IS_SINK``` and ```IS_SOURCE``` that are set to ```True``` if a point falls into either category.
-- Defining a ```type_column``` in the point data, then supplying a ```list``` of ```sink_types``` and a ```list``` of ```source_types``` to lookup in the ```type_column```. This will then be mapped onto two ```bool``` columns in the point data named ```IS_SINK``` and ```IS_SOURCE```.
-
-
-## Determining subsurface flow direction
-
-Resolving the flow direction of subsurface stormwater networks, which is doing during ```network.Network.resolve_directions()```, can be done in three ways:
-1) ```from_sources```: This is the default. This method traces networks upstream from their discharge points. This assumes that subnetworks are comprised of one or more flow sink that flow to a single flow source. If multiple flow sources are connected to a given flow sink, this method will run into issues since determining which flow source is the terminal node in the graph would need to incorporate pipe elevation data somehow.
-2) ```vertex_order```: This defines the subsurface flow direction using the order of verticies in the line data (flowing from the first to last vertex).
-3) ```vertex_order_r```: This is the same as above, but in reverse (flowing from last to first vertex).
-
-Two other potential methods that are not yet implemented are:
-- Using surface elevation data as an analog for for subsurface pipe elevations. In flat urban settings this would likely have a lot of issues/inaccuracies.
-- Using pipe invert data from the attributes of point or line data. This would require manual preparation by the user but would be the most accurate method.
-
-
 ## Example Usage
 
 ### Imports
@@ -71,6 +52,10 @@ sources = [5, 9] # Corresponds to outfalls and culvert outlets
 net = sc.Network(
   storm_lines, storm_pts, type_column='Type', sink_types=sinks, source_types=sources
 )
+```
+Refer to [Mapping flow sinks and sources](#mapping-flow-sinks-and-sources) below for more information on initializing a ```Network```
+### Resolve flow directions of the Network
+```python
 net.resolve_directions(method='from_sources', verbose=True)
 ```
 Output:
@@ -78,11 +63,12 @@ Output:
 Adding edges...
 Succesfully resolved direction for 202 edges
 ```
+Refer to [Determining subsurface flow direction](#determining-subsurface-flow-direction) below for more information of resolving Network directions
 ### Preprocess terrain data
 ```python
 grid, fdir, acc = sc.terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
 ```
-Note that ```terrain.preprocess_dem()``` uses default settings for ```pysheds```. Feel free to experiment with this step to try and improve results with your terrain data.
+Note that ```sc.terrain.preprocess_dem()``` uses default settings for ```pysheds```. It's worth experimenting with this step to try and improve results with your DEM.
 ### Initialize Delineate object and get a stormcatchment
 ```python
 grid_epsg = 6589
@@ -108,3 +94,22 @@ catchment.plot(ax=ax, ec='blue', fc='blue', alpha=0.5, linewidth=3)
 net.draw(ax=ax, add_basemap=True)
 ```
 ![Plot of catchment and stormcatchment](img/example_stormcatchment.png)
+
+
+## Mapping flow sinks and sources
+
+Flow sinks are where flow can enter a subsurface system (such as a catchbasin). Flow sources are where flow can exit a subsurface system (such as an outfall). Initializing the ```network.Network``` requires either:
+- Manually setting two ```bool``` columns in the point ```GeoDataFrame```, named ```IS_SINK``` and ```IS_SOURCE``` that are set to ```True``` if a point falls into either category.
+- Defining a ```type_column``` in the point data, then supplying a ```list``` of ```sink_types``` and a ```list``` of ```source_types``` to lookup in the ```type_column```. This will then be mapped onto two ```bool``` columns in the point data named ```IS_SINK``` and ```IS_SOURCE```.
+
+
+## Determining subsurface flow direction
+
+Resolving the flow direction of subsurface stormwater networks, which is doing during ```network.Network.resolve_directions()```, can be done in three ways:
+1) ```from_sources```: This is the default. This method traces networks upstream from their discharge points. This assumes that subnetworks are comprised of one or more flow sink that flow to a single flow source. If multiple flow sources are connected to a given flow sink, this method will run into issues since determining which flow source is the terminal node in the graph would need to incorporate pipe elevation data somehow.
+2) ```vertex_order```: This defines the subsurface flow direction using the order of verticies in the line data (flowing from the first to last vertex).
+3) ```vertex_order_r```: This is the same as above, but in reverse (flowing from last to first vertex).
+
+Two other potential methods that are not yet implemented are:
+- Using surface elevation data as an analog for for subsurface pipe elevations. In flat urban settings this would likely have a lot of issues/inaccuracies.
+- Using pipe invert data from the attributes of point or line data. This would require manual preparation by the user but would be the most accurate method.
