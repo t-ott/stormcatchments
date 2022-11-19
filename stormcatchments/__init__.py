@@ -1,3 +1,3 @@
-__version__ = '0.1.2'
+__version__ = '0.2.0'
 
-from . import delineate, network, terrain
+from . import constants, delineate, network, terrain

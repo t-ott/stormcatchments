@@ -97,10 +97,7 @@ class Network:
         self.crs = storm_pts.crs
 
         self.lines = storm_lines
-        # Explode all lines into 2-vertex segments, add these as edges in a directional
-        # graph with coordinate tuples as nodes. The DiGraph will initialize with two
-        # edges connecting each node pair, one in each direction. Direction will be
-        # revised later
+        # Explode all lines into 2-vertex segments while rounding coordinates
         self.G = nx.DiGraph()
         self.directions_resolved = False
         all_segments = {}
@@ -127,7 +124,6 @@ class Network:
         for src_index, segments in all_segments.items():
             segments = gpd.GeoDataFrame(geometry=gpd.GeoSeries(segments), crs=self.crs)
             segments['src_index'] = src_index
-            # segments[index_column] = src_index
             self.segments = gpd.pd.concat([self.segments, segments], ignore_index=True)
 
         self.pts = storm_pts
@@ -141,7 +137,7 @@ class Network:
                     'map onto "IS_SINK"'
                 )
             elif self.pts.dtypes['IS_SINK'] != bool:
-                raise ValueError('Column "IS_SINK" must be bool')
+                raise ValueError('Column "IS_SINK" must be bool type')
             elif 'IS_SOURCE' not in self.pts.columns:
                 raise ValueError(
                     'Column "IS_SOURCE" not present in point data. Supply a bool '
@@ -149,7 +145,7 @@ class Network:
                     'source_types to map onto "IS_SOURCE"'                    
                 )
             elif self.pts.dtypes['IS_SOURCE'] != bool:
-                raise ValueError('Column "IS_SOURCE" must be bool')
+                raise ValueError('Column "IS_SOURCE" must be bool type')
         else:
             # Need to map SINK and SOURCE data
             if type_column not in self.pts.columns:
@@ -279,7 +275,7 @@ class Network:
                 self.traverse_upstream(u, visited)
 
 
-    def add_edges(self, direction: str) -> None:
+    def add_edges(self, direction: str, verbose: bool=False)  -> None:
         '''
         Utilize user storm line data to add edges (and their nodes) to self.G in one or
         both directions
@@ -290,7 +286,12 @@ class Network:
             Direction to add edges in, based on the order of verticies in the user's
             stormwater infrastructure line data (self.lines & self.segments). Can be
             'both', 'original', or 'reverse'
+        verbose : bool
+            Set to True to print direction resolution/edge addition results to console
         '''
+        if verbose:
+            print('Adding edges...')
+
         if direction == 'both' or direction == 'original':
             self.segments['geometry'].apply(
                 lambda seg: self.G.add_edge(seg.coords[0], seg.coords[1])
@@ -305,13 +306,22 @@ class Network:
                 '"reverse"'
             )
 
+        if verbose:
+            if direction == 'original' or direction == 'reverse':
+                print(f'Succesfully added {self.G.number_of_edges()} edges') 
 
-    def resolve_from_sources(self) -> None:
+
+    def resolve_from_sources(self, verbose: bool=False) -> None:
         '''
         Resolve directions of all edges within the graph by traversing subgraphs
         upstream from each flow source
+
+        Parameters
+        ----------
+        verbose : bool (default False)
+            Set to True to print direction resolution results to console
         '''
-        self.add_edges(direction='both')
+        self.add_edges(direction='both', verbose=verbose)
 
         source_pts = self.pts[self.pts['IS_SOURCE']]
         missing_pts = []
@@ -320,11 +330,31 @@ class Network:
             if not self.has_StormPoint(pt):
                 missing_pts.append(pt.Index)
                 continue
-
             self.resolve_upstream(pt)
+        
+        if verbose:
+            if len(missing_pts) > 0:
+                print(
+                    'The following flow source points were not present in the graph, '
+                    'ensure that they are properly snapped to a line vertex: ',
+                    missing_pts
+                )
+
+            n_bidirectional = 0
+            n_unidirectional = 0
+            for u, v in self.G.edges():
+                if self.G.has_edge(v, u):
+                    n_bidirectional += 1
+                else:
+                    n_unidirectional += 1
+            print(f'Succesfully resolved direction for {n_unidirectional} edges')
+            if n_bidirectional > 0:
+                print(f'Failed to resolve direction for {n_bidirectional/2} edges')
 
 
-    def resolve_directions(self, method: str='from_sources') -> None:
+    def resolve_directions(
+        self, method: str='from_sources', verbose: bool=False
+    ) -> None:
         '''
         Attempt to resolve directions for all edges within the graph
 
@@ -339,13 +369,15 @@ class Network:
                 self.lines 
             - 'vertex_order_r': Defines edge directions using reverse order of verticies
                 in self.lines
+        verbose : bool (default False)
+            Set to True to print direction resolution results to console
         '''
         if method == 'from_sources':
-            self.resolve_from_sources()
+            self.resolve_from_sources(verbose=verbose)
         elif method == 'vertex_order':
-            self.add_edges(direction='original')
+            self.add_edges(direction='original', verbose=verbose)
         elif method == 'vertex_order_r':
-            self.add_edges(direction='reverse')
+            self.add_edges(direction='reverse', verbose=verbose)
         else:
             raise ValueError(
                 f'Method "{method}" is not a valid edge resolution method, must be '
