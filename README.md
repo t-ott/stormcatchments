@@ -63,7 +63,7 @@ Output:
 Adding edges...
 Succesfully resolved direction for 202 edges
 ```
-Refer to [Determining subsurface flow direction](#determining-subsurface-flow-direction) below for more information of resolving Network directions
+Refer to [Determining subsurface flow direction](#determining-subsurface-flow-direction) below for more information of resolving ```Network``` directions
 ### Preprocess terrain data
 ```python
 grid, fdir, acc = sc.terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
@@ -105,8 +105,8 @@ Flow sinks are where flow can enter a subsurface system (such as a catchbasin). 
 
 ## Determining subsurface flow direction
 
-Resolving the flow direction of subsurface stormwater networks, which is doing during ```network.Network.resolve_directions()```, can be done in three ways:
-1) ```from_sources```: This is the default. This method traces networks upstream from their discharge points. This assumes that subnetworks are comprised of one or more flow sink that flow to a single flow source. If multiple flow sources are connected to a given flow sink, this method will run into issues since determining which flow source is the terminal node in the graph would need to incorporate pipe elevation data somehow.
+Resolving the flow direction of subsurface stormwater networks, which is done during ```network.Network.resolve_directions()```, can be done in three ways:
+1) ```from_sources```: This is the default. This method traces networks upstream from their discharge points. This assumes that subnetworks are comprised of one or more flow sinks that flow to a single flow source. If multiple flow sources are connected to a given flow sink, this method will run into issues since determining which flow source is the terminal node in the graph would need to incorporate pipe elevation data somehow.
 2) ```vertex_order```: This defines the subsurface flow direction using the order of verticies in the line data (flowing from the first to last vertex).
 3) ```vertex_order_r```: This is the same as above, but in reverse (flowing from last to first vertex).
 
