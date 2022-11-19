@@ -52,7 +52,7 @@ Two other potential methods that are not yet implemented are:
 ### Imports
 ```python
 import geopandas as gpd
-from stormcatchments import delineate, network, terrain
+import stormcatchments as sc
 ```
 ### Read infrastructure data
 ```python
@@ -64,24 +64,29 @@ storm_pts.set_index('OBJECTID', inplace=True)
 ### Initialize Network object and resolve directions
 ```python
 # storm_pts contains a column "Type" with integer values describing what type of 
-# structure each point is
+# structure each point represents
 sinks = [2, 8] # Corresponds to catchbasins and culvert inlets
 sources = [5, 9] # Corresponds to outfalls and culvert outlets
 
-net = network.Network(
+net = sc.Network(
   storm_lines, storm_pts, type_column='Type', sink_types=sinks, source_types=sources
 )
-net.resolve_directions(method='from_sources')
+net.resolve_directions(method='from_sources', verbose=True)
+```
+Output:
+```
+Adding edges...
+Succesfully resolved direction for 202 edges
 ```
 ### Preprocess terrain data
 ```python
-grid, fdir, acc = terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
+grid, fdir, acc = sc.terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
 ```
 Note that ```terrain.preprocess_dem()``` uses default settings for ```pysheds```. Feel free to experiment with this step to try and improve results with your terrain data.
 ### Initialize Delineate object and get a stormcatchment
 ```python
 grid_epsg = 6589
-delin = delineate.Delineate(net, grid, fdir, acc, grid_epsg)
+delin = sc.Delineate(net, grid, fdir, acc, grid_epsg)
 
 # (x, y) coordinates in same CRS as grid
 pour_pt = (484636, 237170)
@@ -89,15 +94,17 @@ stormcatchment = delin.get_stormcatchment(pour_pt)
 ```
 ### Also get the original catchment (network unaware) to compare results
 ```python
-catchment = delineate.get_catchment(pour_pt, grid, fdir, acc, 6589)
+catchment = sc.delineate.get_catchment(pour_pt, grid, fdir, acc, 6589)
 ```
 ### Plot original catchment in blue and stormcatchment in orange
 This uses the built-in ```net.draw()``` method, which adds a ```contextily``` basemap when ```add_basemap=True```. Note that the orange stormcatchment incorporates a large hillside 
 that pipes to the pour point.
 ```python
-fig, ax = plt.subplots(figsize=(8, 8))
-stormcatchment.plot(ax=ax, ec='orange', fc='orange', alpha=0.7, linewidth=3)
-catchment.plot(ax=ax, ec='blue', fc='blue', alpha=0.7, linewidth=3)
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(12, 12))
+stormcatchment.plot(ax=ax, ec='orange', fc='orange', alpha=0.5, linewidth=3)
+catchment.plot(ax=ax, ec='blue', fc='blue', alpha=0.5, linewidth=3)
 net.draw(ax=ax, add_basemap=True)
 ```
 ![Plot of catchment and stormcatchment](img/example_stormcatchment.png)
