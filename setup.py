@@ -5,18 +5,17 @@ with open('README.md', 'r') as f:
 
 setup(
   name='stormcatchments',
-  version='0.2.0',
+  version='0.2.1',
   description='Stormwater network aware catchment delineation',
   long_description=long_description,
   long_description_content_type='text/markdown',
-  author='Thomas Ott',
+  author='Thomas Ott',    
   author_email='tommy.ott617@gmail.com',
   license='MIT',
   url='https://github.com/t-ott/stormcatchments',
-  py_modules=[
-    'stormcatchments'
-  ],
-  packages=find_packages(),
+  packages=find_packages(
+    include=['stormcatchments', 'stormcatchments.*']
+  ),
   install_requires=[
     'geopandas',
     'networkx',
