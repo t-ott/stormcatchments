@@ -25,6 +25,7 @@ pip install stormcatchments
 ## Input data requirements
 
 To utilize this package, you need both **point** and **line** spatial data, which could represent a network of catchbasins and stormlines. The file format does not matter as long as it can be successfully read into a ```geopandas.GeoDataFrame```. The line data must connect to the points, and lines must have verticies snapped to the points.
+
 This was initially developed for [Vermont Agency of Natural Resources stormwater infrastructure dataset](https://gis-vtanr.hub.arcgis.com/maps/VTANR::stormwater-infrastructure/explore?location=43.609172%2C-72.968811%2C14.15). However, the package is intended to generalize to any infrastructure dataset that meets these basic requirements.
 
 
@@ -76,11 +77,14 @@ delin = sc.Delineate(net, grid, fdir, acc, grid_epsg)
 
 # (x, y) coordinates in same CRS as grid
 pour_pt = (484636, 237170)
-stormcatchment = delin.get_stormcatchment(pour_pt)
+# get stormcatchment using the default accumulation threshold
+stormcatchment = delin.get_stormcatchment(pour_pt, acc_thresh=1000)
 ```
 ### Also get the original catchment (network unaware) to compare results
 ```python
-catchment = sc.delineate.get_catchment(pour_pt, grid, fdir, acc, 6589)
+catchment = sc.delineate.get_catchment(
+  pour_pt, grid, fdir, acc, grid_epsg, acc_thresh=1000
+)
 ```
 ### Plot original catchment in blue and stormcatchment in orange
 This uses the built-in ```net.draw()``` method, which adds a ```contextily``` basemap when ```add_basemap=True```. Note that the orange stormcatchment incorporates a large hillside 
