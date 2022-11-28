@@ -5,7 +5,7 @@ with open('README.md', 'r') as f:
 
 setup(
   name='stormcatchments',
-  version='0.2.1',
+  version='0.2.2',
   description='Stormwater network aware catchment delineation',
   long_description=long_description,
   long_description_content_type='text/markdown',
@@ -14,7 +14,8 @@ setup(
   license='MIT',
   url='https://github.com/t-ott/stormcatchments',
   packages=find_packages(
-    include=['stormcatchments', 'stormcatchments.*']
+    include=['stormcatchments', 'stormcatchments.*'],
+    exclude=['tests']
   ),
   install_requires=[
     'geopandas',
