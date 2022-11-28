@@ -1,16 +1,16 @@
 import copy
 import geopandas as gpd
 import numpy as np
-import pysheds, pysheds.sgrid, pysheds.sview
+import pysheds
 from shapely.geometry import Polygon
 
 from stormcatchments.network import Network
 
 def get_catchment(
   pour_pt: tuple,
-  grid: pysheds.sgrid.sGrid,
-  fdir: pysheds.sview.Raster,
-  acc: pysheds.sview.Raster,
+  grid: 'pysheds.sgrid.sGrid',
+  fdir: 'pysheds.sview.Raster',
+  acc: 'pysheds.sview.Raster',
   grid_epsg: int,
   acc_thresh: int=1000
 ) -> gpd.GeoDataFrame:
@@ -67,9 +67,9 @@ class Delineate:
   def __init__(
       self,
       network: Network,
-      grid: pysheds.sgrid.sGrid,
-      fdir: pysheds.sview.Raster,
-      acc: pysheds.sview.Raster,
+      grid: 'pysheds.sgrid.sGrid',
+      fdir: 'pysheds.sview.Raster',
+      acc: 'pysheds.sview.Raster',
       grid_epsg: int,
     ):
     '''
