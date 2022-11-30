@@ -1,4 +1,6 @@
 # stormcatchments
+[![PyPi](https://img.shields.io/pypi/v/stormcatchments.svg)](https://pypi.python.org/pypi/stormcatchments)
+
 ## Stormwater network aware catchment delineation
 
 Converts existing stormwater infrastucture GIS feature data (points and lines) into a
