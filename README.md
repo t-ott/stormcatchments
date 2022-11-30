@@ -5,10 +5,11 @@ Converts existing stormwater infrastucture GIS feature data (points and lines) i
 ```networkx``` directed graph (```DiGraph```) object, then utilizes the ```DiGraph``` to
 incorporate subsurface flows into urban stormwater catchment delineation.
 
-Various dependencies include:
+Dependencies include:
 - ```geopandas```
 - ```networkx```
 - ```pysheds```
+- ```rtree```
 
 Similar libraries/projects:
 - [```s2g```](https://github.com/caesar0301/s2g)
