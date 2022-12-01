@@ -23,7 +23,7 @@ setup(
     'pysheds',
     'rtree'
   ],
-  extra_requires={
+  extras_require={
     'basemap': 'contextily',
     'dev': [
       'pytest'
