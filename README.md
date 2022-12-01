@@ -7,14 +7,14 @@ Converts existing stormwater infrastucture GIS feature data (points and lines) i
 ```networkx``` directed graph (```DiGraph```) object, then utilizes the ```DiGraph``` to
 incorporate subsurface flows into urban stormwater catchment delineation.
 
-Dependencies include:
-- ```geopandas```
-- ```networkx```
-- ```pysheds```
-- ```rtree```
+Dependencies of ```stormcatchments``` include:
+- ```geopandas```: https://github.com/geopandas/geopandas
+- ```networkx```: https://github.com/networkx/networkx
+- ```pysheds```: https://github.com/mdbartos/pysheds
+- ```rtree```: https://github.com/Toblerity/rtree
 
 Similar libraries/projects:
-- [```s2g```](https://github.com/caesar0301/s2g)
+- ```s2g```: https://github.com/caesar0301/s2g
 - [```networkx``` module ```nx_shp.py```](https://github.com/networkx/networkx/blob/6e20b952a957af820990f68d9237609198088816/networkx/readwrite/nx_shp.py)
 
 
