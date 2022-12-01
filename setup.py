@@ -36,5 +36,6 @@ setup(
     'Programming Language :: Python :: 3.9',
     'Topic :: Scientific/Engineering :: GIS',
     'Topic :: Scientific/Engineering :: Hydrology'
-  ]
+  ],
+  python_requires='>=3.8'
 )
