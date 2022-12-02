@@ -5,13 +5,13 @@ with open('README.md', 'r') as f:
 
 setup(
   name='stormcatchments',
-  version='0.2.3',
+  version='0.3.0',
   description='Stormwater network aware catchment delineation',
   long_description=long_description,
   long_description_content_type='text/markdown',
   author='Thomas Ott',    
   author_email='tommy.ott617@gmail.com',
-  license='MIT',
+  license='GPLv3',
   url='https://github.com/t-ott/stormcatchments',
   packages=find_packages(
     include=['stormcatchments', 'stormcatchments.*'],
@@ -31,8 +31,9 @@ setup(
     'plotting': 'matplotlib'
   },
   classifiers=[
-    'License :: OSI Approved :: MIT License',
+    'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
     'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: 3.9',
     'Topic :: Scientific/Engineering :: GIS',
     'Topic :: Scientific/Engineering :: Hydrology'
