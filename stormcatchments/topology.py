@@ -22,11 +22,12 @@ def find_floating_points(net: Network) -> gpd.GeoDataFrame:
   '''
   floating_pts = []
   for pt in net.pts.itertuples():
-    pt_x = pt.geometry.x
-    pt_y = pt.geometry.y
-
     # Get all segments that pt touches, could be on a vertex or between verticies
-    touch_segs = net.segments.cx[pt_x:pt_x, pt_y:pt_y]
+    touch_segs = net.segments[net.segments.geometry.touches(pt.geometry)]
+    # Point doesn't touch any segments
+    if len(touch_segs) == 0:
+      floating_pts.append(pt)
+      continue
 
     # Collect segment coordinates as (x, y) tuples
     seg_coords = set()
@@ -34,7 +35,7 @@ def find_floating_points(net: Network) -> gpd.GeoDataFrame:
       for c in l.coords:
         seg_coords.add(c)
 
-    if (pt_x, pt_y) not in seg_coords:
+    if (pt.geometry.x, pt.geometry.y) not in seg_coords:
       floating_pts.append(pt)
     
   return gpd.GeoDataFrame(floating_pts)
