@@ -1,5 +1,4 @@
 import geopandas as gpd
-import json
 
 from stormcatchments.network import Network
 
@@ -29,18 +28,35 @@ def find_floating_points(net: Network) -> gpd.GeoDataFrame:
     # Get all segments that pt touches, could be on a vertex or between verticies
     touch_segs = net.segments.cx[pt_x:pt_x, pt_y:pt_y]
 
-    seg_json = json.loads(touch_segs.geometry.to_json())
+    # Collect segment coordinates as (x, y) tuples
     seg_coords = set()
-    for f in seg_json['features']:
-      for coord in f['geometry']['coordinates']:
-        seg_coords.add(tuple(coord))
+    for l in touch_segs.geometry:
+      for c in l.coords:
+        seg_coords.add(c)
 
     if (pt_x, pt_y) not in seg_coords:
       floating_pts.append(pt)
     
   return gpd.GeoDataFrame(floating_pts)
 
-def snap_points(net: Network, tolerance: float) -> None:
+def snap_points(net: Network, tolerance: float) -> Network:
+  '''
+  Create a copy of a supplied Network which snaps any points in Network to the
+  closest line vertex within a snapping tolerance
+
+  Parameters
+  ----------
+  net : Network
+    A stormcatchments Network object which may contain floating points
+
+  tolerance : float
+    The maximum search distance to find the nearest vertex
+
+  Returns
+  -------
+  net_snapped : Network
+    A stormcatchments Network object with snapping applied to its point data
+  '''
   # Snap all floating (un-snapped) points to the nearest line vertex
   pass
 
