@@ -1,4 +1,7 @@
+from copy import deepcopy
+
 import geopandas as gpd
+from shapely.geometry import Point
 
 from stormcatchments.network import Network
 
@@ -24,7 +27,7 @@ def find_floating_points(net: Network) -> gpd.GeoDataFrame:
   for pt in net.pts.itertuples():
     # Get all segments that pt touches, could be on a vertex or between verticies
     touch_segs = net.segments[net.segments.geometry.touches(pt.geometry)]
-    # Point doesn't touch any segments
+
     if len(touch_segs) == 0:
       floating_pts.append(pt)
       continue
@@ -37,8 +40,8 @@ def find_floating_points(net: Network) -> gpd.GeoDataFrame:
 
     if (pt.geometry.x, pt.geometry.y) not in seg_coords:
       floating_pts.append(pt)
-    
-  return gpd.GeoDataFrame(floating_pts)
+  
+  return gpd.GeoDataFrame(floating_pts, crs=net.crs).set_index('Index')
 
 def snap_points(net: Network, tolerance: float) -> Network:
   '''
