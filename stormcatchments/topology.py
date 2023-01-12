@@ -62,7 +62,28 @@ def snap_points(net: Network, tolerance: float) -> Network:
     A stormcatchments Network object with snapping applied to its point data
   '''
   # Snap all floating (un-snapped) points to the nearest line vertex
-  pass
+  floating_pts = find_floating_points(net)
+
+  net_snapped = deepcopy(net)
+  for pt in floating_pts.itertuples():
+      nearby = net.segments.cx[
+        pt.geometry.x-tolerance:pt.geometry.x+tolerance,
+        pt.geometry.y-tolerance:pt.geometry.y+tolerance
+      ]
+
+      closest_xy = None
+      closest_dist = tolerance**2
+      for l in nearby.geometry:
+        for c in l.coords:
+          dist = pt.geometry.distance(Point(c))
+          if dist < closest_dist:
+            closest_dist = dist
+            closest_xy = c
+      
+      if closest_dist <= tolerance:
+        net_snapped.pts.at[pt.Index, 'geometry'] = Point(closest_xy)
+
+  return net_snapped
 
 def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
   # Return all subnetworks within the greater Network that have more than one flow
