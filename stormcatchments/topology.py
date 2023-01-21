@@ -1,7 +1,8 @@
 from copy import deepcopy
 
 import geopandas as gpd
-from shapely.geometry import Point
+import networkx as nx
+from shapely.geometry import LineString, Point
 
 from stormcatchments.network import Network
 
@@ -86,6 +87,46 @@ def snap_points(net: Network, tolerance: float) -> Network:
   return net_snapped
 
 def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
-  # Return all subnetworks within the greater Network that have more than one flow
-  # source / outlet
-  pass
+  '''
+  Find all subnetworks within greater Network that have more than one flow source/outlet
+
+  Parameters
+  ----------
+  net : Network
+    A stormcatchments Network with resolved directions
+
+  Returns
+  -------
+  mutli_out : gpd.GeoDataFrame
+    A GeoDataFrame containing line segment features and an arbitrary "subG_id" column
+    denoting which connected subgraph the segment belongs to. If no multi-outlets are
+    found an empty GeoDataFrame is returned
+  '''
+  if not net.directions_resolved:
+    raise ValueError(
+      'Network directions must be resolved prior to searching for mutli-outlet '
+      'componenets'
+    )
+
+  multi_out = gpd.GeoDataFrame()
+  subG_id = 0
+
+  for c in nx.weakly_connected_components(net.G):
+    outlets = set()
+    # Count flow sources (outlets) in current weakly connected component
+    for n in c:
+      pt = net.pts.cx[n[0]:n[0], n[1]:n[1]]
+      if not pt.empty:
+        pt = pt.iloc[0]
+        if pt.IS_SOURCE:
+          outlets.add(n)
+
+    if len(outlets) > 1:
+      subG = nx.subgraph(net.G, c)
+      subG_gs = gpd.GeoSeries([LineString(e) for e in subG.edges()])
+      subG_gdf = gpd.GeoDataFrame(geometry=subG_gs, crs=net.crs)
+      subG_gdf['subG_id'] = subG_id
+      multi_out = gpd.pd.concat([multi_out, subG_gdf])
+      subG_id += 1
+  
+  return multi_out
