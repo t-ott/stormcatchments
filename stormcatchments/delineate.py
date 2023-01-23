@@ -1,4 +1,5 @@
-import copy
+from copy import deepcopy
+
 import geopandas as gpd
 import numpy as np
 import pysheds
@@ -42,8 +43,8 @@ def get_catchment(
     catchment : gpd.GeoDataFrame
       A GeoDataFrame containing the newly delineated catchment polygon
     '''
-    # create a deep copy of the grid to not manipulate original grid
-    grid = copy.deepcopy(grid)
+    # create a deepcopy of the grid to not manipulate original grid
+    grid = deepcopy(grid)
     x, y = pour_pt
     x_snap, y_snap = grid.snap_to_mask(acc > acc_thresh, (x, y))
     catch = grid.catchment(x=x_snap, y=y_snap, fdir=fdir)

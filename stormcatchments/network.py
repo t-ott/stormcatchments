@@ -1,10 +1,11 @@
 from collections import namedtuple
-import geopandas as gpd
-import pandas as pd
-import networkx as nx
 from typing import Optional
-from shapely.geometry import LineString, MultiPoint, Point
 import warnings
+
+import geopandas as gpd
+import networkx as nx
+import pandas as pd
+from shapely.geometry import LineString, MultiPoint, Point
 
 
 def get_point_coords(pt_geom, decimals: int=None) -> tuple:
