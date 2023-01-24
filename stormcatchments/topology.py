@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import geopandas as gpd
 import networkx as nx
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, MultiLineString, Point
 
 from stormcatchments.network import Network
 
@@ -43,6 +43,7 @@ def find_floating_points(net: Network) -> gpd.GeoDataFrame:
       floating_pts.append(pt)
   
   return gpd.GeoDataFrame(floating_pts, crs=net.crs).set_index('Index')
+
 
 def snap_points(net: Network, tolerance: float) -> Network:
   '''
@@ -86,6 +87,7 @@ def snap_points(net: Network, tolerance: float) -> Network:
 
   return net_snapped
 
+
 def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
   '''
   Find all subnetworks within greater Network that have more than one flow source/outlet
@@ -98,9 +100,9 @@ def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
   Returns
   -------
   mutli_out : gpd.GeoDataFrame
-    A GeoDataFrame containing line segment features and an arbitrary "subG_id" column
-    denoting which connected subgraph the segment belongs to. If no multi-outlets are
-    found an empty GeoDataFrame is returned
+    A GeoDataFrame containing one MultiLineString features for each connected subgraph
+    with multiple outlets/flow sources. If no multi-outlet subgraphs are found an empty
+    GeoDataFrame is returned
   '''
   if not net.directions_resolved:
     raise ValueError(
@@ -108,8 +110,7 @@ def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
       'componenets'
     )
 
-  multi_out = gpd.GeoDataFrame()
-  subG_id = 0
+  multi_out_geoms = []
 
   for c in nx.weakly_connected_components(net.G):
     outlets = set()
@@ -123,10 +124,7 @@ def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
 
     if len(outlets) > 1:
       subG = nx.subgraph(net.G, c)
-      subG_gs = gpd.GeoSeries([LineString(e) for e in subG.edges()])
-      subG_gdf = gpd.GeoDataFrame(geometry=subG_gs, crs=net.crs)
-      subG_gdf['subG_id'] = subG_id
-      multi_out = gpd.pd.concat([multi_out, subG_gdf])
-      subG_id += 1
+      subG_geom = MultiLineString([LineString(e) for e in subG.edges()])
+      multi_out_geoms.append(subG_geom)
   
-  return multi_out
+  return gpd.GeoDataFrame(geometry=gpd.GeoSeries(multi_out_geoms), crs=net.crs)
