@@ -44,6 +44,7 @@ def find_floating_points(net: Network) -> gpd.GeoDataFrame:
   
   return gpd.GeoDataFrame(floating_pts, crs=net.crs).set_index('Index')
 
+
 def snap_points(net: Network, tolerance: float) -> Network:
   '''
   Create a copy of a supplied Network which snaps any points in Network to the
@@ -85,6 +86,7 @@ def snap_points(net: Network, tolerance: float) -> Network:
         net_snapped.pts.at[pt.Index, 'geometry'] = Point(closest_xy)
 
   return net_snapped
+
 
 def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
   '''
