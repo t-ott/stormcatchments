@@ -101,7 +101,7 @@ def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
   -------
   mutli_out : gpd.GeoDataFrame
     A GeoDataFrame containing one MultiLineString features for each connected subgraph
-    with multiple outlets/flow sources. If no multi-outlets are found an empty
+    with multiple outlets/flow sources. If no multi-outlet subgraphs are found an empty
     GeoDataFrame is returned
   '''
   if not net.directions_resolved:
