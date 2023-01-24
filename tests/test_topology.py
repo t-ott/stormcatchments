@@ -1,5 +1,5 @@
 import geopandas as gpd
-from shapely.geometry import MultiLineString, Point
+from shapely.geometry import MultiLineString
 import pytest
 
 from stormcatchments import network, topology
@@ -26,14 +26,13 @@ def test_find_multi_outlet(net_synth):
   net = net_synth
   net.resolve_directions()
 
-  multi_out = topology.find_multi_outlet(net)
-  multi_out_geom = MultiLineString([l for l in multi_out['geometry']])
+  multi_out_geom = topology.find_multi_outlet(net).geometry
 
   pt_3 = net.pts.loc[3].geometry
   pt_12 = net.pts.loc[12].geometry
 
-  assert not multi_out_geom.intersects(pt_3)
-  assert multi_out_geom.intersects(pt_12)
+  assert not multi_out_geom.intersects(pt_3).any()
+  assert multi_out_geom.intersects(pt_12).any()
 
 
 def test_find_floating_points(net_synth):
