@@ -120,3 +120,10 @@ Resolving the flow direction of subsurface stormwater networks, which is done du
 Two other potential methods that are not yet implemented are:
 - Using surface elevation data as an analog for for subsurface pipe elevations. In flat urban settings this would likely have a lot of issues/inaccuracies.
 - Using pipe invert data from the attributes of point or line data. This would require manual preparation by the user but would be the most accurate method.
+
+## Validating network topology
+
+Several functions are available in ```stormcatchments.topology``` to assist in validating the topology of your input data. These include:
+- ```find_floating_points```: Returns points that aren't snapped to a line vertex. Floating points cannot be incorporated into the Network.
+- ```snap_points```: Returns an altered copy of a ```stormcatchments.Network``` in which any floating points are snapped to the nearest vertex, within a specified snapping tolerance.
+- ```find_multi_outlet```: Returns a ```GeoDataFrame``` containing geometry for subgraphs within a ```Network``` that have multiple flow sources (outlets). Delineation results may not be optimal in mutli-outlet subgraphs depending on how the directions are resolved within them. Having a single outlet ensures predictable delineation results.
