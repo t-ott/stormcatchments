@@ -16,7 +16,14 @@ functionality is powered by ``pysheds``.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Classes:
+
+   network
+   delineate
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Modules:
 
    stormcatchments
 
@@ -25,4 +32,3 @@ Indices and tables
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`
