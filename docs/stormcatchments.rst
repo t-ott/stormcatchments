@@ -1,40 +1,37 @@
-stormcatchments package
-=======================
-
-stormcatchments.constants module
---------------------------------
+stormcatchments.constants
+=========================
 
 .. automodule:: stormcatchments.constants
    :members:
    :undoc-members:
    :show-inheritance:
 
-stormcatchments.delineate module
---------------------------------
+stormcatchments.delineate
+=========================
 
 .. automodule:: stormcatchments.delineate
    :members:
    :undoc-members:
    :show-inheritance:
 
-stormcatchments.network module
-------------------------------
+stormcatchments.network
+=======================
 
 .. automodule:: stormcatchments.network
    :members:
    :undoc-members:
    :show-inheritance:
 
-stormcatchments.terrain module
-------------------------------
+stormcatchments.terrain
+=======================
 
 .. automodule:: stormcatchments.terrain
    :members:
    :undoc-members:
    :show-inheritance:
 
-stormcatchments.topology module
--------------------------------
+stormcatchments.topology
+========================
 
 .. automodule:: stormcatchments.topology
    :members:
