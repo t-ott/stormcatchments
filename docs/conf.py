@@ -22,7 +22,7 @@ copyright = '2023, Thomas Ott'
 author = 'Thomas Ott'
 
 # The full version, including alpha/beta/rc tags
-release = '0.3.1'
+release = '0.4.0'
 
 
 # -- General configuration ---------------------------------------------------
