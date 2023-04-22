@@ -41,6 +41,9 @@ cover/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# Sphinx documentation
+docs/_build/
+
 # Various local development files
 debug/
 grids/
