@@ -5,7 +5,7 @@ with open('README.md', 'r') as f:
 
 setup(
   name='stormcatchments',
-  version='0.3.1',
+  version='0.4.0',
   description='Stormwater network aware catchment delineation',
   long_description=long_description,
   long_description_content_type='text/markdown',
