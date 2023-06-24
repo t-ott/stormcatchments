@@ -398,7 +398,11 @@ class Network:
             raise ValueError(
                 f"Cannot find terminal nodes until directions are resolved"
             )
-        leaf_nodes = [n for n in self.G.nodes() if self.G.out_degree(n)==0 and self.G.in_degree(n)>=1]
+        leaf_nodes = [
+            n
+            for n in self.G.nodes()
+            if self.G.out_degree(n) == 0 and self.G.in_degree(n) >= 1
+        ]
 
         for node in leaf_nodes:
             pt = self.pts.cx[node[0], node[1]]
@@ -608,15 +612,30 @@ class Network:
 
         if not sink_pts.empty:
             sink_pts.plot(
-                ax=ax, color="white", marker="s", edgecolor="black", markersize=10, zorder=2
+                ax=ax,
+                color="white",
+                marker="s",
+                edgecolor="black",
+                markersize=10,
+                zorder=2,
             )
         if not source_pts.empty:
             source_pts.plot(
-                ax=ax, color="white", marker="o", edgecolor="black", markersize=10, zorder=2
+                ax=ax,
+                color="white",
+                marker="o",
+                edgecolor="black",
+                markersize=10,
+                zorder=2,
             )
         if not other_pts.empty:
             other_pts.plot(
-                ax=ax, color="gray", marker="o", edgecolor="black", markersize=10, zorder=2
+                ax=ax,
+                color="gray",
+                marker="o",
+                edgecolor="black",
+                markersize=10,
+                zorder=2,
             )
 
         if add_basemap:
