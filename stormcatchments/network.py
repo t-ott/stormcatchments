@@ -22,6 +22,7 @@ def get_point_coords(pt_geom, decimals: int=None) -> tuple:
     if isinstance(pt_geom, Point):
         x = pt_geom.x
         y = pt_geom.y
+    # TODO: Refactor to explode MultiPoint to Point during Network init
     elif isinstance(pt_geom, MultiPoint):
         x = pt_geom.geoms[0].x
         y = pt_geom.geoms[0].y
