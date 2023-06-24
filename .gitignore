@@ -50,6 +50,7 @@ grids/
 notebooks/
 qgis/
 shapefiles/
+.vscode/
 
 # MacOS
 .DS_Store
