@@ -389,6 +389,23 @@ class Network:
 
         self.directions_resolved = True
 
+    def leaf_nodes_to_sources(self) -> None:
+        """
+        Convert all leaf nodes in the current graph to flows sources (marking IS_SOURCE
+        as True).
+        """
+        if not self.directions_resolved:
+            raise ValueError(
+                f"Cannot find terminal nodes until directions are resolved"
+            )
+        leaf_nodes = [n for n in self.G.nodes() if self.G.out_degree(n)==0 and self.G.in_degree(n)>=1]
+
+        for node in leaf_nodes:
+            pt = self.pts.cx[node[0], node[1]]
+            if not pt.empty:
+                self.pts.loc[pt.index, "IS_SOURCE"] = True
+                self.pts.loc[pt.index, "IS_SINK"] = False
+
     def get_outlet(self, pt_idx: int) -> Optional[int]:
         """
         Get Index of the outlet for a given storm_pt whose coordinates exist in the
@@ -588,15 +605,19 @@ class Network:
         sink_pts = pts[pts["IS_SINK"] == True]
         source_pts = pts[pts["IS_SOURCE"] == True]
         other_pts = pts[(pts["IS_SINK"] == False) & (pts["IS_SOURCE"] == False)]
-        sink_pts.plot(
-            ax=ax, color="white", marker="s", edgecolor="black", markersize=10, zorder=2
-        )
-        source_pts.plot(
-            ax=ax, color="white", marker="o", edgecolor="black", markersize=10, zorder=2
-        )
-        other_pts.plot(
-            ax=ax, color="gray", marker="o", edgecolor="black", markersize=10, zorder=2
-        )
+
+        if not sink_pts.empty:
+            sink_pts.plot(
+                ax=ax, color="white", marker="s", edgecolor="black", markersize=10, zorder=2
+            )
+        if not source_pts.empty:
+            source_pts.plot(
+                ax=ax, color="white", marker="o", edgecolor="black", markersize=10, zorder=2
+            )
+        if not other_pts.empty:
+            other_pts.plot(
+                ax=ax, color="gray", marker="o", edgecolor="black", markersize=10, zorder=2
+            )
 
         if add_basemap:
             try:
