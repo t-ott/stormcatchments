@@ -129,10 +129,10 @@ class Network:
         # Retain all segment data with the segment's corresponding self.lines index
         # stored in a column
         self.segments = gpd.GeoDataFrame()
-        for src_index, segment in all_segments.items():
-            segment = gpd.GeoDataFrame(geometry=gpd.GeoSeries(segments), crs=self.crs)
-            segment['src_index'] = src_index
-            self.segments = gpd.pd.concat([self.segments, segment], ignore_index=True)
+        for src_index, segments in all_segments.items():
+            segments = gpd.GeoDataFrame(geometry=gpd.GeoSeries(segments), crs=self.crs)
+            segments['src_index'] = src_index
+            self.segments = gpd.pd.concat([self.segments, segments], ignore_index=True)
 
         self.pts = storm_pts
         # Deal with mapping of IS_SOURCE and IS_SINK in point data
