@@ -3,25 +3,25 @@ from pysheds.grid import Grid
 
 def preprocess_dem(dem_path: str) -> tuple:
     """
-  Pre-process digital elevation model (DEM), in line standard preprocessing steps
-  outlined in pysheds documentation
+    Pre-process digital elevation model (DEM), in line standard preprocessing steps
+    outlined in pysheds documentation
 
-  Parameters
-  ----------
-  dem_path: str
-    Path to DEM raster file
-  
-  Returns
-  -------
-  grid: pysheds.sgrid.sGrid
-    Grid view of digitial elevation model (DEM) raster
+    Parameters
+    ----------
+    dem_path: str
+      Path to DEM raster file
 
-  acc: pysheds.sview.Raster
-    A pysehds flow accumulation raster
+    Returns
+    -------
+    grid: pysheds.sgrid.sGrid
+      Grid view of digitial elevation model (DEM) raster
 
-  fdir: pysheds.sview.Raster
-    A pysheds flow direction raster
-  """
+    acc: pysheds.sview.Raster
+      A pysehds flow accumulation raster
+
+    fdir: pysheds.sview.Raster
+      A pysheds flow direction raster
+    """
     grid = Grid.from_raster(dem_path)
     dem = grid.read_raster(dem_path)
     pit_filled = grid.fill_pits(dem)
@@ -34,15 +34,15 @@ def preprocess_dem(dem_path: str) -> tuple:
 
 def mosaic_to_new_raster(raster_paths: list, out_path: str):
     """
-  Combine a set of rasters and write to a new file.
+    Combine a set of rasters and write to a new file.
 
-  Parameters
-  ----------
-  raster_paths: list
-    List of str, each being a path to an existing raster file
-  out_path: str
-    Path to write new mosiac raster to
-  """
+    Parameters
+    ----------
+    raster_paths: list
+      List of str, each being a path to an existing raster file
+    out_path: str
+      Path to write new mosiac raster to
+    """
     import rasterio, rasterio.merge
 
     tiles = [rasterio.open(r) for r in raster_paths]

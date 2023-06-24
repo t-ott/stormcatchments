@@ -46,9 +46,9 @@ def test_non_empty_graph_johnson(net_johnson):
 
 def test_line_segmentation_johnson(net_johnson):
     """
-  Ensure line segmentation process of Network initialization retains total line length
-  within 0.1m
-  """
+    Ensure line segmentation process of Network initialization retains total line length
+    within 0.1m
+    """
     net = net_johnson
     net.resolve_directions()
     assert round(net.lines.geometry.length.sum(), 1) == round(
@@ -67,9 +67,9 @@ def test_points_in_graph_johnson(net_johnson):
 
 def test_resolve_direction_simple_johnson(net_johnson):
     """
-  Ensure the direction of a simple 3-node subgraph can be resolved such that the only
-  edges present are in the correct direction of flow for that subgraph
-  """
+    Ensure the direction of a simple 3-node subgraph can be resolved such that the only
+    edges present are in the correct direction of flow for that subgraph
+    """
     net = net_johnson
     net.resolve_directions()
 
@@ -85,9 +85,9 @@ def test_resolve_direction_simple_johnson(net_johnson):
 
 def test_resolve_direction_complex_johnson(net_johnson):
     """
-  Ensure the direction of a larger subgraph with multiple branches can be resolved such
-  that the only edges present are in the correct direction of flow for that subgraph
-  """
+    Ensure the direction of a larger subgraph with multiple branches can be resolved such
+    that the only edges present are in the correct direction of flow for that subgraph
+    """
     net = net_johnson
     net.resolve_directions()
 
@@ -103,9 +103,9 @@ def test_resolve_direction_complex_johnson(net_johnson):
 
 def test_get_outlet_johnson(net_johnson):
     """
-  After resolving direction for a SINK point, test that it's outlet is properly
-  identified
-  """
+    After resolving direction for a SINK point, test that it's outlet is properly
+    identified
+    """
     net = net_johnson
     net.resolve_directions()
     assert net.get_outlet(20847) == 21134
@@ -113,10 +113,10 @@ def test_get_outlet_johnson(net_johnson):
 
 def test_resolve_catchment_johnson(net_johnson):
     """
-  Test that resolve_catchment_graph removes all bidirectional edges within the
-  catchment, meaning the flow directions for the catchment subgraph have been fully
-  resolved / have no ambiguity 
-  """
+    Test that resolve_catchment_graph removes all bidirectional edges within the
+    catchment, meaning the flow directions for the catchment subgraph have been fully
+    resolved / have no ambiguity
+    """
     catchment = gpd.read_file("tests/test_data/johnson_vt/initial_catchment.shp")
 
     net = net_johnson

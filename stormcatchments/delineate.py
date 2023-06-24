@@ -26,7 +26,7 @@ def get_catchment(
 
     grid : pysheds.sgrid.sGrid
       DEM
-    
+
     fdir : pysheds.sview.Raster
       A pysheds flow direction raster
 
@@ -38,7 +38,7 @@ def get_catchment(
 
     acc_thresh : int (default 1000)
       The minimum accumulation threshold used during pour point snapping
-    
+
     Returns
     -------
     catchment : gpd.GeoDataFrame
@@ -75,22 +75,22 @@ class Delineate:
         grid_epsg: int,
     ):
         """
-    network : stormcatchments.network.Network
-      Network object that will be used to drive the networking / infrastructure
-      connectivity aspects of catchment delineation
-    
-    grid : pysheds.sgrid.sGrid
-      DEM
+        network : stormcatchments.network.Network
+          Network object that will be used to drive the networking / infrastructure
+          connectivity aspects of catchment delineation
 
-    fdir : pysheds.sview.Raster
-      A pysheds flow direction raster
+        grid : pysheds.sgrid.sGrid
+          DEM
 
-    acc : pysheds.sview.Raster
-      A pysehds flow accumulation raster
+        fdir : pysheds.sview.Raster
+          A pysheds flow direction raster
 
-    grid_epsg : int
-      EPSG code for the CRS of the DEM
-    """
+        acc : pysheds.sview.Raster
+          A pysehds flow accumulation raster
+
+        grid_epsg : int
+          EPSG code for the CRS of the DEM
+        """
 
         if not network.directions_resolved:
             raise ValueError(
@@ -106,21 +106,21 @@ class Delineate:
 
     def get_catchment(self, pour_pt: tuple, acc_thresh: int = 1000) -> gpd.GeoDataFrame:
         """
-    Delineate catchment using pysheds
+        Delineate catchment using pysheds
 
-    Parameters
-    ----------
-    pour_pt : tuple
-      An (x, y) coordinate pair, with the same coordinate system as the grid
+        Parameters
+        ----------
+        pour_pt : tuple
+          An (x, y) coordinate pair, with the same coordinate system as the grid
 
-    acc_thresh : int (default 1000)
-      The minimum accumulation threshold used during pour point snapping
-    
-    Returns
-    -------
-    catchment : gpd.GeoDataFrame
-      A GeoDataFrame containing the newly delineated catchment polygon
-    """
+        acc_thresh : int (default 1000)
+          The minimum accumulation threshold used during pour point snapping
+
+        Returns
+        -------
+        catchment : gpd.GeoDataFrame
+          A GeoDataFrame containing the newly delineated catchment polygon
+        """
         return get_catchment(
             pour_pt,
             self.grid,
@@ -134,27 +134,27 @@ class Delineate:
         self, pts: gpd.GeoDataFrame, delineated: set
     ) -> tuple([gpd.GeoDataFrame, set]):
         """
-    Delineate catchments for a subset of infrastructure points
+        Delineate catchments for a subset of infrastructure points
 
-    Parameters
-    ----------
-    pts : gpd.GeoDataFrame
-      Points to delineate catchments for
-    
-    delineated : set
-      A set of the OBJECTID (indicies) of point that have already been delineated. These
-      points may or may not lie spatially within the catchment because snapping to the
-      flow accumulation raster may shift their location
+        Parameters
+        ----------
+        pts : gpd.GeoDataFrame
+          Points to delineate catchments for
 
-    Returns
-    -------
-    catchments : gpd.GeoDataFrame
-      The newly delineated catchment for all the provided points, or an empty
-      GeoDataFrame if the provided points have already been delineated
-    
-    delineated : set
-      (Same as param delineated, see above)
-    """
+        delineated : set
+          A set of the OBJECTID (indicies) of point that have already been delineated. These
+          points may or may not lie spatially within the catchment because snapping to the
+          flow accumulation raster may shift their location
+
+        Returns
+        -------
+        catchments : gpd.GeoDataFrame
+          The newly delineated catchment for all the provided points, or an empty
+          GeoDataFrame if the provided points have already been delineated
+
+        delineated : set
+          (Same as param delineated, see above)
+        """
         catchments = gpd.GeoDataFrame()
 
         for pt in pts.itertuples(name="StormPoint"):
@@ -178,22 +178,22 @@ class Delineate:
         self, pour_pt: tuple, acc_thresh: int = 1000
     ) -> gpd.GeoDataFrame:
         """
-    Iteratively delineate a stormcatchment. pysheds does the delineation work and
-    the network module provides the stormwater infrastructure networking
+        Iteratively delineate a stormcatchment. pysheds does the delineation work and
+        the network module provides the stormwater infrastructure networking
 
-    Parameters
-    ----------
-    pour_pt : tuple
-      An (x, y) coordinate pair, with the same coordinate system as the grid
+        Parameters
+        ----------
+        pour_pt : tuple
+          An (x, y) coordinate pair, with the same coordinate system as the grid
 
-    acc_thresh : int (default 1000)
-      The minimum accumulation threshold used during pour point snapping
-    
-    Returns
-    -------
-    catchment: gpd.GeoDataFrame
-      A GeoDataFrame containing the newly delineated catchment polygon
-    """
+        acc_thresh : int (default 1000)
+          The minimum accumulation threshold used during pour point snapping
+
+        Returns
+        -------
+        catchment: gpd.GeoDataFrame
+          A GeoDataFrame containing the newly delineated catchment polygon
+        """
         catchment = self.get_catchment(pour_pt, acc_thresh)
 
         # Keep track of all point indicies which have been delineated
