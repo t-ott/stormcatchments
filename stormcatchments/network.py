@@ -99,7 +99,7 @@ class Network:
             )
         self.crs = storm_pts.crs
 
-        if 'MultiLineString' in storm_lines.geom_type.values:
+        if "MultiLineString" in storm_lines.geom_type.values:
             # Explode to singlepart geometries
             self.lines = storm_lines.explode(ignore_index=True)
             self.lines.reset_index(drop=True, inplace=True)
