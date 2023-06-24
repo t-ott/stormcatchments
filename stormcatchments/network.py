@@ -46,7 +46,7 @@ class Network:
     """
     Parses through stormwater infrastructure point and line data to generate directional
     graphs represeting the connectivity of the infrastructure network.
-    
+
     Attributes:
     -----------
     crs : pyproj.crs.crs.CRS
@@ -91,7 +91,7 @@ class Network:
             these points, such as a catchbasin
         source_types : list (default None)
             List of type values that correspond to flow sources, where flow exits at
-            these points, such as an outfall 
+            these points, such as an outfall
         """
         if storm_pts.crs != storm_lines.crs:
             raise ValueError(
@@ -189,7 +189,7 @@ class Network:
         ----------
         pt : gpd.GeoDataFrame | pd.Series | StormPoint (namedtuple)
             Point data to convert to namedtuple
-        
+
         Returns
         -------
         pt : StormPoint (namedtuple)
@@ -365,11 +365,11 @@ class Network:
         ----------
         method : str (default 'from_sources')
             Method to resolve edge directions for self.G, can be one of the following:
-            - 'from_sources': Traverses upstream from each outlet point (where 
+            - 'from_sources': Traverses upstream from each outlet point (where
                 self.pts['IS_SOURCE'] == True) to define edge directions to point to
                 outlets
             - 'vertex_order': Defines edge directions using the order of verticies in
-                self.lines 
+                self.lines
             - 'vertex_order_r': Defines edge directions using reverse order of verticies
                 in self.lines
         verbose : bool (default False)
@@ -519,10 +519,10 @@ class Network:
         ----------
         extent : gpd.GeoDataFrame (default None)
             GeoDataFrame whose extent will be used to trim the infrastructure data
-        
+
         ax : plt.axes | None (default None)
             Matplotlib axes object to utilize for plot
-        
+
         add_basemap : bool (deafult False)
             Option to add a contextily basemap to the plot
         """
