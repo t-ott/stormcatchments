@@ -1,6 +1,7 @@
 # stormcatchments
 [![PyPi](https://img.shields.io/pypi/v/stormcatchments.svg)](https://pypi.python.org/pypi/stormcatchments)
 [![docs](https://readthedocs.org/projects/stormcatchments/badge)](https://stormcatchments.readthedocs.io/en/latest/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ## Stormwater network aware catchment delineation
 
