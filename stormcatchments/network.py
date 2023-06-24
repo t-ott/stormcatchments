@@ -97,12 +97,18 @@ class Network:
             )
         self.crs = storm_pts.crs
 
-        self.lines = storm_lines
+        if 'MultiLineString' in storm_lines.geom_type.values:
+            # Explode to singlepart geometries
+            self.lines = storm_lines.explode(ignore_index=True)
+            self.lines.reset_index(drop=True, inplace=True)
+        else:
+            self.lines = storm_lines
+
         # Explode all lines into 2-vertex segments while rounding coordinates
         self.G = nx.DiGraph()
         self.directions_resolved = False
         all_segments = {}
-        for line in storm_lines.itertuples(name='StormLine'):
+        for line in self.lines.itertuples(name='StormLine'):
             u_coords = line.geometry.coords[:-1]
             v_coords = line.geometry.coords[1:]
             # Round all coordinate values
@@ -120,12 +126,13 @@ class Network:
             segments = list(map(LineString, zip(u_coords, v_coords)))
             all_segments[line.Index] = segments
 
-        # Retain all segment data with the segment's source index stored in a column
+        # Retain all segment data with the segment's corresponding self.lines index
+        # stored in a column
         self.segments = gpd.GeoDataFrame()
-        for src_index, segments in all_segments.items():
-            segments = gpd.GeoDataFrame(geometry=gpd.GeoSeries(segments), crs=self.crs)
-            segments['src_index'] = src_index
-            self.segments = gpd.pd.concat([self.segments, segments], ignore_index=True)
+        for src_index, segment in all_segments.items():
+            segment = gpd.GeoDataFrame(geometry=gpd.GeoSeries(segments), crs=self.crs)
+            segment['src_index'] = src_index
+            self.segments = gpd.pd.concat([self.segments, segment], ignore_index=True)
 
         self.pts = storm_pts
         # Deal with mapping of IS_SOURCE and IS_SINK in point data
