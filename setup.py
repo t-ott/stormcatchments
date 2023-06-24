@@ -26,6 +26,7 @@ setup(
   extras_require={
     'basemap': 'contextily',
     'dev': [
+      'black',
       'pytest'
     ],
     'plotting': 'matplotlib'
