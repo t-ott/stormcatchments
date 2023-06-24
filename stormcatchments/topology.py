@@ -9,21 +9,21 @@ from stormcatchments.network import Network
 
 def find_floating_points(net: Network) -> gpd.GeoDataFrame:
     """
-  Find and return any points in a Network that are not snapped to a line vertex. These
-  floating points cannot be integrated into networking functionality unless they are
-  snapped to a line vertex.
+    Find and return any points in a Network that are not snapped to a line vertex. These
+    floating points cannot be integrated into networking functionality unless they are
+    snapped to a line vertex.
 
-  Parameters
-  ----------
-  net : Network
-    A stormcatchments Network object whose point data will be inspected for floating
-    points
+    Parameters
+    ----------
+    net : Network
+      A stormcatchments Network object whose point data will be inspected for floating
+      points
 
-  Returns
-  -------
-  floating_pts : gpd.GeoDataFrame
-    A GeoDataFrame of any floating points in net.pts
-  """
+    Returns
+    -------
+    floating_pts : gpd.GeoDataFrame
+      A GeoDataFrame of any floating points in net.pts
+    """
     floating_pts = []
     for pt in net.pts.itertuples():
         # Get all segments that pt touches, could be on a vertex or between verticies
@@ -47,22 +47,22 @@ def find_floating_points(net: Network) -> gpd.GeoDataFrame:
 
 def snap_points(net: Network, tolerance: float) -> Network:
     """
-  Create a copy of a supplied Network which snaps any points in Network to the
-  closest line vertex within a snapping tolerance
+    Create a copy of a supplied Network which snaps any points in Network to the
+    closest line vertex within a snapping tolerance
 
-  Parameters
-  ----------
-  net : Network
-    A stormcatchments Network object which may contain floating points
+    Parameters
+    ----------
+    net : Network
+      A stormcatchments Network object which may contain floating points
 
-  tolerance : float
-    The maximum search distance to find the nearest vertex
+    tolerance : float
+      The maximum search distance to find the nearest vertex
 
-  Returns
-  -------
-  net_snapped : Network
-    A stormcatchments Network object with snapping applied to its point data
-  """
+    Returns
+    -------
+    net_snapped : Network
+      A stormcatchments Network object with snapping applied to its point data
+    """
     # Snap all floating (un-snapped) points to the nearest line vertex
     floating_pts = find_floating_points(net)
 
@@ -74,7 +74,7 @@ def snap_points(net: Network, tolerance: float) -> Network:
         ]
 
         closest_xy = None
-        closest_dist = tolerance ** 2
+        closest_dist = tolerance**2
         for l in nearby.geometry:
             for c in l.coords:
                 dist = pt.geometry.distance(Point(c))
@@ -90,20 +90,20 @@ def snap_points(net: Network, tolerance: float) -> Network:
 
 def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
     """
-  Find all subnetworks within greater Network that have more than one flow source/outlet
+    Find all subnetworks within greater Network that have more than one flow source/outlet
 
-  Parameters
-  ----------
-  net : Network
-    A stormcatchments Network with resolved directions
+    Parameters
+    ----------
+    net : Network
+      A stormcatchments Network with resolved directions
 
-  Returns
-  -------
-  mutli_out : gpd.GeoDataFrame
-    A GeoDataFrame containing one MultiLineString features for each connected subgraph
-    with multiple outlets/flow sources. If no multi-outlet subgraphs are found an empty
-    GeoDataFrame is returned
-  """
+    Returns
+    -------
+    mutli_out : gpd.GeoDataFrame
+      A GeoDataFrame containing one MultiLineString features for each connected subgraph
+      with multiple outlets/flow sources. If no multi-outlet subgraphs are found an empty
+      GeoDataFrame is returned
+    """
     if not net.directions_resolved:
         raise ValueError(
             "Network directions must be resolved prior to searching for mutli-outlet "
