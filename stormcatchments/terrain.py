@@ -16,11 +16,11 @@ def preprocess_dem(dem_path: str) -> tuple:
     grid: pysheds.sgrid.sGrid
       Grid view of digitial elevation model (DEM) raster
 
-    acc: pysheds.sview.Raster
-      A pysehds flow accumulation raster
-
     fdir: pysheds.sview.Raster
       A pysheds flow direction raster
+
+    acc: pysheds.sview.Raster
+      A pysehds flow accumulation raster
     """
     grid = Grid.from_raster(dem_path)
     dem = grid.read_raster(dem_path)
