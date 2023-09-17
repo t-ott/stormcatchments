@@ -208,6 +208,8 @@ class Network:
             field_names.insert(0, "Index")
             pt = namedtuple("StormPoint", field_names)(pt.name, *pt)
         else:
+            # TODO: Refactor to remove need for assert statement, or replace with
+            # exception
             assert pt.__class__.__name__ == "StormPoint", (
                 f"Expected pt to be a "
                 "gpd.GeoDataFrame, pd.Series, or a StormPoint namedtuple, but got a "

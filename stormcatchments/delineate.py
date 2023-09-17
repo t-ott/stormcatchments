@@ -94,7 +94,7 @@ class Delineate:
 
         if not network.directions_resolved:
             raise ValueError(
-                f"Cannot generate stormcatchment until graph directions of the Network are "
+                "Cannot generate stormcatchment until graph directions of the Network are "
                 "resolved"
             )
 
@@ -103,6 +103,8 @@ class Delineate:
         self.fdir = fdir
         self.acc = acc
         self.grid_epsg = grid_epsg
+
+        self._max_acc = int(acc.max())
 
     def get_catchment(self, pour_pt: tuple, acc_thresh: int = 1000) -> gpd.GeoDataFrame:
         """
@@ -121,6 +123,12 @@ class Delineate:
         catchment : gpd.GeoDataFrame
           A GeoDataFrame containing the newly delineated catchment polygon
         """
+        if acc_thresh > self._max_acc:
+            raise ValueError(
+                "acc_thresh is greater than the maximum accumulation value of "
+                f"{self._max_acc}"
+            )
+        
         return get_catchment(
             pour_pt,
             self.grid,
@@ -131,7 +139,7 @@ class Delineate:
         )
 
     def delineate_points(
-        self, pts: gpd.GeoDataFrame, delineated: set
+        self, pts: gpd.GeoDataFrame, delineated: set, acc_thresh: int = 1000
     ) -> tuple([gpd.GeoDataFrame, set]):
         """
         Delineate catchments for a subset of infrastructure points
@@ -145,6 +153,9 @@ class Delineate:
           A set of the OBJECTID (indicies) of point that have already been delineated. These
           points may or may not lie spatially within the catchment because snapping to the
           flow accumulation raster may shift their location
+
+        acc_thresh : int (default 1000)
+          The minimum accumulation threshold used during pour point snapping
 
         Returns
         -------
@@ -164,7 +175,7 @@ class Delineate:
                 delineated.add(pt.Index)
                 x = pt.geometry.x
                 y = pt.geometry.y
-                pt_catchment = self.get_catchment((x, y))
+                pt_catchment = self.get_catchment((x, y), acc_thresh)
                 catchments = gpd.pd.concat(
                     [catchments, pt_catchment], ignore_index=True
                 )
@@ -203,7 +214,7 @@ class Delineate:
             outlet_pts = self.net.get_outlet_points(catchment)
             if not outlet_pts.empty:
                 outlet_catchments, delineated = self.delineate_points(
-                    outlet_pts, delineated
+                    outlet_pts, delineated, acc_thresh
                 )
                 if not outlet_catchments.empty:
                     catchment = gpd.overlay(
