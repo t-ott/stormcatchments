@@ -72,6 +72,8 @@ def snap_points(net: Network, tolerance: float) -> Network:
             pt.geometry.x - tolerance : pt.geometry.x + tolerance,
             pt.geometry.y - tolerance : pt.geometry.y + tolerance,
         ]
+        if nearby.empty:
+            continue
 
         closest_xy = None
         closest_dist = tolerance**2
@@ -82,7 +84,7 @@ def snap_points(net: Network, tolerance: float) -> Network:
                     closest_dist = dist
                     closest_xy = c
 
-        if closest_dist <= tolerance:
+        if closest_xy and closest_dist <= tolerance:
             net_snapped.pts.at[pt.Index, "geometry"] = Point(closest_xy)
 
     return net_snapped
