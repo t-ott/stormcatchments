@@ -10,7 +10,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Thomas Ott",
-    author_email="tommy.ott617@gmail.com",
+    author_email="68197166+t-ott@users.noreply.github.com",
     license="GPLv3",
     url="https://github.com/t-ott/stormcatchments",
     packages=find_packages(
