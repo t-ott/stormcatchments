@@ -43,7 +43,8 @@ def mosaic_to_new_raster(raster_paths: list, out_path: str):
     out_path: str
       Path to write new mosiac raster to
     """
-    import rasterio, rasterio.merge
+    import rasterio
+    import rasterio.merge
 
     tiles = [rasterio.open(r) for r in raster_paths]
     mosaic, transform = rasterio.merge.merge(tiles)

@@ -1,5 +1,4 @@
 import geopandas as gpd
-import networkx as nx
 import pytest
 
 from stormcatchments import network

@@ -94,7 +94,7 @@ class Delineate:
 
         if not network.directions_resolved:
             raise ValueError(
-                f"Cannot generate stormcatchment until graph directions of the Network are "
+                "Cannot generate stormcatchment until graph directions of the Network are "
                 "resolved"
             )
 
@@ -130,9 +130,9 @@ class Delineate:
             acc_thresh=acc_thresh,
         )
 
-    def delineate_points(
-        self, pts: gpd.GeoDataFrame, delineated: set
-    ) -> tuple([gpd.GeoDataFrame, set]):
+    def delineate_points(self, pts: gpd.GeoDataFrame, delineated: set) -> tuple(
+        [gpd.GeoDataFrame, set]
+    ):
         """
         Delineate catchments for a subset of infrastructure points
 

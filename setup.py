@@ -19,7 +19,7 @@ setup(
     install_requires=["geopandas", "networkx", "pysheds", "rtree"],
     extras_require={
         "basemap": "contextily",
-        "dev": ["black", "pytest"],
+        "dev": ["ruff", "pytest"],
         "plotting": "matplotlib",
     },
     classifiers=[

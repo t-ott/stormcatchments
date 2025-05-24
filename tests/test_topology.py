@@ -3,7 +3,6 @@ from shapely.geometry import MultiLineString
 import pytest
 
 from stormcatchments import network, topology
-from stormcatchments.constants import SINK_TYPES_VT, SOURCE_TYPES_VT
 
 
 @pytest.fixture
@@ -47,7 +46,7 @@ def test_snap_points(net_synth):
     pt_18 = net_snapped.pts.loc[18].geometry
     pt_21 = net_snapped.pts.loc[21].geometry
 
-    net_geom = MultiLineString([l for l in net.segments["geometry"]])
+    net_geom = MultiLineString([line for line in net.segments["geometry"]])
 
     assert net_geom.intersects(pt_18)
     assert net_geom.intersects(pt_21)
@@ -61,7 +60,7 @@ def test_snap_tolerance(net_synth):
     pt_18 = net_snapped.pts.loc[18].geometry  # >3.0m from nearest vertex
     pt_21 = net_snapped.pts.loc[21].geometry  # <3.0m from nearest vertex
 
-    net_geom = MultiLineString([l for l in net.segments["geometry"]])
+    net_geom = MultiLineString([line for line in net.segments["geometry"]])
 
     assert not net_geom.intersects(pt_18)
     assert net_geom.intersects(pt_21)

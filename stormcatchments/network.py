@@ -136,7 +136,7 @@ class Network:
                     'named "IS_SINK" or supply a type_column and list of sink_types to '
                     'map onto "IS_SINK"'
                 )
-            elif self.pts.dtypes["IS_SINK"] != bool:
+            elif self.pts.dtypes["IS_SINK"] != "bool":
                 raise ValueError('Column "IS_SINK" must be bool type')
             elif "IS_SOURCE" not in self.pts.columns:
                 raise ValueError(
@@ -144,7 +144,7 @@ class Network:
                     'column named "IS_SOURCE" or supply a type_column and list of '
                     'source_types to map onto "IS_SOURCE"'
                 )
-            elif self.pts.dtypes["IS_SOURCE"] != bool:
+            elif self.pts.dtypes["IS_SOURCE"] != "bool":
                 raise ValueError('Column "IS_SOURCE" must be bool type')
         else:
             # Need to map SINK and SOURCE data
@@ -173,7 +173,7 @@ class Network:
             lambda geom: Point([get_point_coords(geom, coord_decimals)])
         )
 
-    def to_StormPoint(self, pt) -> "StormPoint":
+    def to_StormPoint(self, pt) -> "StormPoint": # noqa
         """
         Converts point data from various types to a StormPoint namedtuple
 
@@ -345,7 +345,7 @@ class Network:
                     n_unidirectional += 1
             print(f"Succesfully resolved direction for {n_unidirectional} edges")
             if n_bidirectional > 0:
-                print(f"Failed to resolve direction for {n_bidirectional/2} edges")
+                print(f"Failed to resolve direction for {n_bidirectional / 2} edges")
 
     def resolve_directions(
         self, method: str = "from_sources", verbose: bool = False
@@ -358,7 +358,7 @@ class Network:
         method : str (default 'from_sources')
             Method to resolve edge directions for self.G, can be one of the following:
             - 'from_sources': Traverses upstream from each outlet point (where
-                self.pts['IS_SOURCE'] == True) to define edge directions to point to
+                self.pts['IS_SOURCE'] is True) to define edge directions to point to
                 outlets
             - 'vertex_order': Defines edge directions using the order of verticies in
                 self.lines
@@ -392,7 +392,7 @@ class Network:
             Index of point, note that OBJECTID is the default index column
         """
         if not self.directions_resolved:
-            raise ValueError(f"Cannot get outlet until graph directions are resolved")
+            raise ValueError("Cannot get outlet until graph directions are resolved")
 
         pt_x, pt_y = get_point_coords(self.pts.loc[pt_idx].geometry)
         if (pt_x, pt_y) not in self.G:
@@ -445,7 +445,7 @@ class Network:
             catchment = catchment.to_crs(crs=self.pts.crs)
 
         catchment_pts = gpd.clip(self.pts, catchment)
-        sink_pts = catchment_pts[catchment_pts["IS_SINK"] == True]
+        sink_pts = catchment_pts[catchment_pts["IS_SINK"] is True]
 
         indicies_to_remove = []
         sink_pt_inidicies = sink_pts.index.to_list()
@@ -474,14 +474,14 @@ class Network:
         """
         if not self.directions_resolved:
             raise ValueError(
-                f"Cannot get inlet points until graph directions are resolved"
+                "Cannot get inlet points until graph directions are resolved"
             )
 
         if catchment.crs != self.pts.crs:
             catchment = catchment.to_crs(crs=self.pts.crs)
 
         catchment_pts = gpd.clip(self.pts, catchment)
-        source_pts = catchment_pts[catchment_pts["IS_SOURCE"] == True]
+        source_pts = catchment_pts[catchment_pts["IS_SOURCE"] is True]
         source_pt_geoms = source_pts.geometry.tolist()
         source_pt_coords = [get_point_coords(geom) for geom in source_pt_geoms]
 
@@ -503,7 +503,7 @@ class Network:
 
     def draw(
         self, extent: gpd.GeoDataFrame = None, ax=None, add_basemap: bool = False
-    ) -> "plt.axes":
+    ) -> "plt.axes":  # noqa
         """
         Draw the Graph using the geographic coordinates of each node
 
@@ -520,7 +520,6 @@ class Network:
         """
         import matplotlib.pyplot as plt
         from matplotlib.collections import LineCollection
-        import numpy as np
 
         if add_basemap:
             import contextily as cx
@@ -577,9 +576,9 @@ class Network:
             pts = self.pts
 
         # Plot points
-        sink_pts = pts[pts["IS_SINK"] == True]
-        source_pts = pts[pts["IS_SOURCE"] == True]
-        other_pts = pts[(pts["IS_SINK"] == False) & (pts["IS_SOURCE"] == False)]
+        sink_pts = pts[pts["IS_SINK"] is True]
+        source_pts = pts[pts["IS_SOURCE"] is True]
+        other_pts = pts[(pts["IS_SINK"] is False) & (pts["IS_SOURCE"] is False)]
         sink_pts.plot(
             ax=ax, color="white", marker="s", edgecolor="black", markersize=10, zorder=2
         )

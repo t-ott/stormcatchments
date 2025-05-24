@@ -35,9 +35,9 @@ def find_floating_points(net: Network) -> gpd.GeoDataFrame:
 
         # Collect segment coordinates as (x, y) tuples
         seg_coords = set()
-        for l in touch_segs.geometry:
-            for c in l.coords:
-                seg_coords.add(c)
+        for line in touch_segs.geometry:
+            for coord in line.coords:
+                seg_coords.add(coord)
 
         if (pt.geometry.x, pt.geometry.y) not in seg_coords:
             floating_pts.append(pt)
@@ -75,12 +75,12 @@ def snap_points(net: Network, tolerance: float) -> Network:
 
         closest_xy = None
         closest_dist = tolerance**2
-        for l in nearby.geometry:
-            for c in l.coords:
-                dist = pt.geometry.distance(Point(c))
+        for line in nearby.geometry:
+            for coord in line.coords:
+                dist = pt.geometry.distance(Point(coord))
                 if dist < closest_dist:
                     closest_dist = dist
-                    closest_xy = c
+                    closest_xy = coord
 
         if closest_dist <= tolerance:
             net_snapped.pts.at[pt.Index, "geometry"] = Point(closest_xy)
