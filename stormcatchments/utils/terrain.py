@@ -1,3 +1,8 @@
+"""terrain utils
+
+Various utility functions for working with terrain rasters using pysheds
+"""
+
 from pysheds.grid import Grid
 
 

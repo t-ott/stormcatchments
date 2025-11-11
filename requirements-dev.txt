@@ -1,0 +1,20 @@
+# TODO: This relists requirements.txt explicitly, which could cause deps to become out
+# of sync. `-r requirements.txt` could be used but won't work with conda install --file
+
+# Core
+geopandas
+networkx
+pysheds
+rtree
+
+# Extras
+contextily
+matplotlib
+rasterio
+
+# Development
+ipykernel
+pre-commit
+pytest
+ruff
+twine

@@ -1,3 +1,8 @@
+"""topology utils
+
+Various utility functions for validating/cleaning the topology of vector networks
+"""
+
 from copy import deepcopy
 
 import geopandas as gpd
@@ -112,7 +117,7 @@ def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
 
     multi_out_geoms = []
 
-    for c in nx.weakly_connected_components(net.G):
+    for c in nx.weakly_connected_components(net.digraph):
         outlets = set()
         # Count flow sources (outlets) in current weakly connected component
         for n in c:
@@ -123,8 +128,8 @@ def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
                     outlets.add(n)
 
         if len(outlets) > 1:
-            subG = nx.subgraph(net.G, c)
-            subG_geom = MultiLineString([LineString(e) for e in subG.edges()])
-            multi_out_geoms.append(subG_geom)
+            sub_g = nx.subgraph(net.digraph, c)
+            sub_g_geom = MultiLineString([LineString(e) for e in sub_g.edges()])
+            multi_out_geoms.append(sub_g_geom)
 
     return gpd.GeoDataFrame(geometry=gpd.GeoSeries(multi_out_geoms), crs=net.crs)

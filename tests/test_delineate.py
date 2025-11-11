@@ -2,8 +2,18 @@ import geopandas as gpd
 from shapely.geometry import Point
 import pytest
 
-from stormcatchments import network, delineate, terrain
-from stormcatchments.constants import SINK_TYPES_VT, SOURCE_TYPES_VT
+from stormcatchments import delineate, network
+from stormcatchments.utils import terrain
+
+SINK_TYPES_VT = [
+    2,  # Catchbasin
+    8,  # Culvert inlet
+]
+
+SOURCE_TYPES_VT = [
+    5,  # Outfall
+    9,  # Culvert outlet
+]
 
 
 @pytest.fixture

@@ -157,7 +157,7 @@ class Delineate:
         """
         catchments = gpd.GeoDataFrame()
 
-        for pt in pts.itertuples(name="StormPoint"):
+        for pt in pts.itertuples():
             if pt.Index in delineated:
                 continue
             else:

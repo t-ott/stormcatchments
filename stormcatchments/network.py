@@ -52,11 +52,11 @@ class Network:
         The PyProj Coordinate Reference System of infrastructure data
     lines : gpd.GeoDataFrame
         All the stormwater infrastructure line features within the area of interest
-    G : nx.DiGraph
+    digraph : nx.DiGraph
         A list of all the graphs generated within the area of interest
     direction_resolved : bool
         Checks if Network is fully initialized and usable, equals True if directions of
-        the edges in self.G have been resolved
+        the edges in self.digraph have been resolved
     segments : gpd.GeoDataFrame
         All the stormwater infrastructure line geometry split into segments
     pts : gpd.GeoDataFrame
@@ -92,6 +92,9 @@ class Network:
             List of type values that correspond to flow sources, where flow exits at
             these points, such as an outfall
         """
+
+        # TODO: Identify private and public class attributes
+
         if storm_pts.crs != storm_lines.crs:
             raise ValueError(
                 "Coordinate reference systems of point and line datasets must match"
@@ -99,11 +102,12 @@ class Network:
         self.crs = storm_pts.crs
 
         self.lines = storm_lines
+
         # Explode all lines into 2-vertex segments while rounding coordinates
-        self.G = nx.DiGraph()
+        self.digraph = nx.DiGraph()
         self.directions_resolved = False
         all_segments = {}
-        for line in storm_lines.itertuples(name="StormLine"):
+        for line in storm_lines.itertuples():
             u_coords = line.geometry.coords[:-1]
             v_coords = line.geometry.coords[1:]
             # Round all coordinate values
@@ -173,7 +177,9 @@ class Network:
             lambda geom: Point([get_point_coords(geom, coord_decimals)])
         )
 
-    def to_StormPoint(self, pt) -> "StormPoint": # noqa
+    # TODO: Get rid of this namedtuple concept. Convert to StormPoint class if needed.
+    # This just needs to be in it's init method somewhere
+    def to_StormPoint(self, pt) -> "StormPoint":  # noqa
         """
         Converts point data from various types to a StormPoint namedtuple
 
@@ -209,22 +215,22 @@ class Network:
 
     def has_StormPoint(self, pt) -> bool:
         """
-        Check if self.G contains a given StormPoint
+        Check if self.digraph contains a given StormPoint
 
         Parameters
         ----------
         pt : gpd.GeoDataFrame | pd.Series | StormPoint (namedtuple)
-            Point whose cooridnate pair will searched for in self.G
+            Point whose coordinate pair will searched for in self.digraph
 
         Returns
         -------
         has_node : bool
-            True if the pt's coordinate pair is present as a node in self.G
+            True if the pt's coordinate pair is present as a node in self.digraph
         """
         pt = self.to_StormPoint(pt)
         pt_x = pt.geometry.x
         pt_y = pt.geometry.y
-        return self.G.has_node((pt_x, pt_y))
+        return self.digraph.has_node((pt_x, pt_y))
 
     def resolve_upstream(self, source_pt) -> None:
         """
@@ -258,24 +264,24 @@ class Network:
         ----------
         coords : tuple
             Tuple of current (x, y) float coordinates. These coordinates are the
-            name/index of the nodes in self.G
+            name/index of the nodes in self.digraph
         visited : set
             Used to record which coordinates have already been visited in this search
         """
         v = coords
         visited.add(v)
-        for u in self.G.predecessors(v):
+        for u in self.digraph.predecessors(v):
             if u not in visited:
                 # Only retain edge from u -> v
-                if self.G.has_edge(v, u):
-                    assert self.G.has_edge(u, v)
-                    self.G.remove_edge(v, u)
+                if self.digraph.has_edge(v, u):
+                    assert self.digraph.has_edge(u, v)
+                    self.digraph.remove_edge(v, u)
                 self.traverse_upstream(u, visited)
 
     def add_edges(self, direction: str, verbose: bool = False) -> None:
         """
-        Utilize user storm line data to add edges (and their nodes) to self.G in one or
-        both directions
+        Utilize user storm line data to add edges (and their nodes) to self.digraph in
+        one or both directions
 
         Parameters
         ----------
@@ -291,11 +297,11 @@ class Network:
 
         if direction == "both" or direction == "original":
             self.segments["geometry"].apply(
-                lambda seg: self.G.add_edge(seg.coords[0], seg.coords[1])
+                lambda seg: self.digraph.add_edge(seg.coords[0], seg.coords[1])
             )
         elif direction == "both" or direction == "reverse":
             self.segments["geometry"].apply(
-                lambda seg: self.G.add_edge(seg.coords[1], seg.coords[0])
+                lambda seg: self.digraph.add_edge(seg.coords[1], seg.coords[0])
             )
         else:
             raise ValueError(
@@ -305,7 +311,7 @@ class Network:
 
         if verbose:
             if direction == "original" or direction == "reverse":
-                print(f"Succesfully added {self.G.number_of_edges()} edges")
+                print(f"Succesfully added {self.digraph.number_of_edges()} edges")
 
     def resolve_from_sources(self, verbose: bool = False) -> None:
         """
@@ -338,8 +344,8 @@ class Network:
 
             n_bidirectional = 0
             n_unidirectional = 0
-            for u, v in self.G.edges():
-                if self.G.has_edge(v, u):
+            for u, v in self.digraph.edges():
+                if self.digraph.has_edge(v, u):
                     n_bidirectional += 1
                 else:
                     n_unidirectional += 1
@@ -356,9 +362,9 @@ class Network:
         Parameters
         ----------
         method : str (default 'from_sources')
-            Method to resolve edge directions for self.G, can be one of the following:
+            Method to resolve edge directions for self.digraph, can be one of the following:
             - 'from_sources': Traverses upstream from each outlet point (where
-                self.pts['IS_SOURCE'] is True) to define edge directions to point to
+                self.pts['IS_SOURCE'] == True) to define edge directions to point to
                 outlets
             - 'vertex_order': Defines edge directions using the order of verticies in
                 self.lines
@@ -395,14 +401,14 @@ class Network:
             raise ValueError("Cannot get outlet until graph directions are resolved")
 
         pt_x, pt_y = get_point_coords(self.pts.loc[pt_idx].geometry)
-        if (pt_x, pt_y) not in self.G:
+        if (pt_x, pt_y) not in self.digraph:
             warnings.warn(
                 f"The point with index {pt_idx} does not have its coordinates as a "
                 "node in the graph"
             )
             return None
 
-        subG = nx.dfs_tree(self.G, (pt_x, pt_y))
+        subG = nx.dfs_tree(self.digraph, (pt_x, pt_y))
         outlet_coords = [coords for coords, deg in subG.out_degree() if deg == 0]
         if len(outlet_coords) == 0:
             raise ValueError(f"Subgraph of point with index {pt_idx} has no outlet")
@@ -445,7 +451,7 @@ class Network:
             catchment = catchment.to_crs(crs=self.pts.crs)
 
         catchment_pts = gpd.clip(self.pts, catchment)
-        sink_pts = catchment_pts[catchment_pts["IS_SINK"] is True]
+        sink_pts = catchment_pts[catchment_pts["IS_SINK"] == True]  # noqa
 
         indicies_to_remove = []
         sink_pt_inidicies = sink_pts.index.to_list()
@@ -481,13 +487,13 @@ class Network:
             catchment = catchment.to_crs(crs=self.pts.crs)
 
         catchment_pts = gpd.clip(self.pts, catchment)
-        source_pts = catchment_pts[catchment_pts["IS_SOURCE"] is True]
+        source_pts = catchment_pts[catchment_pts["IS_SOURCE"] == True]  # noqa
         source_pt_geoms = source_pts.geometry.tolist()
         source_pt_coords = [get_point_coords(geom) for geom in source_pt_geoms]
 
         contrib_sink_inidices = set()
         for coords in source_pt_coords:
-            tree = nx.bfs_tree(self.G, coords, reverse=True)
+            tree = nx.bfs_tree(self.digraph, coords, reverse=True)
 
             for node in tree.nodes():
                 if catchment.contains(Point(node)).any():
@@ -536,14 +542,14 @@ class Network:
 
         bidirectional_edges = []
         directional_edges = []
-        for edge in self.G.edges():
+        for edge in self.digraph.edges():
             if extent is not None:
                 # Exclude edges with no verticies within extent
                 if not envelope.contains(
                     Point(edge[0][0], edge[0][1])
                 ) and not envelope.contains(Point(edge[1][0], edge[1][1])):
                     continue
-            if self.G.has_edge(edge[1], edge[0]):
+            if self.digraph.has_edge(edge[1], edge[0]):
                 bidirectional_edges.append(edge)
             else:
                 directional_edges.append(edge)
@@ -570,15 +576,14 @@ class Network:
         lc = LineCollection([edge for edge in bidirectional_edges], color="darkblue")
         ax.add_collection(lc)
 
+        pts = self.pts.copy(deep=True)
         if extent is not None:
-            pts = gpd.clip(self.pts, extent["geometry"].envelope)
-        else:
-            pts = self.pts
+            pts = gpd.clip(pts, extent["geometry"].envelope)
 
         # Plot points
-        sink_pts = pts[pts["IS_SINK"] is True]
-        source_pts = pts[pts["IS_SOURCE"] is True]
-        other_pts = pts[(pts["IS_SINK"] is False) & (pts["IS_SOURCE"] is False)]
+        sink_pts = pts[pts["IS_SINK"] == True]  # noqa
+        source_pts = pts[pts["IS_SOURCE"] == True]  # noqa
+        other_pts = pts[(pts["IS_SINK"] == False) & (pts["IS_SOURCE"] == False)]  # noqa
         sink_pts.plot(
             ax=ax, color="white", marker="s", edgecolor="black", markersize=10, zorder=2
         )
@@ -592,7 +597,10 @@ class Network:
         if add_basemap:
             try:
                 cx.add_basemap(
-                    ax, source=cx.providers.Esri.WorldImagery, crs=self.crs.to_string()
+                    ax,
+                    source=cx.providers.Esri.WorldImagery,
+                    crs=self.crs.to_string(),
+                    alpha=0.7,
                 )
             except Exception as e:
                 warnings.warn(

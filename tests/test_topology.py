@@ -2,7 +2,8 @@ import geopandas as gpd
 from shapely.geometry import MultiLineString
 import pytest
 
-from stormcatchments import network, topology
+from stormcatchments import network
+from stormcatchments.utils import topology
 
 
 @pytest.fixture
