@@ -1,7 +1,9 @@
--r requirements.txt
+# TODO: This relists requirements.txt explicitly, which could cause deps to become out
+# of sync. `-r requirements.txt` could be used but won't work with conda install --file
+geopandas
+networkx
+pysheds
+rtree
 pytest
 ruff
-build
 twine
-steuptools>=45
-wheel
