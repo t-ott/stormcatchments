@@ -5,103 +5,37 @@
 ## Stormwater network aware catchment delineation
 
 Converts existing stormwater infrastucture GIS feature data (points and lines) into a
-```networkx``` directed graph (```DiGraph```) object, then utilizes the ```DiGraph``` to
+`networkx` directed graph (`DiGraph`) object, then utilizes the `DiGraph` to
 incorporate subsurface flows into urban stormwater catchment delineation.
 
-Dependencies of ```stormcatchments``` include:
-- [```geopandas```](https://github.com/geopandas/geopandas)
-- [```networkx```](https://github.com/networkx/networkx)
-- [```pysheds```](https://github.com/mdbartos/pysheds)
-- [```rtree```](https://github.com/Toblerity/rtree)
+The core dependencies of `stormcatchments` include:
+- [`geopandas`](https://github.com/geopandas/geopandas)
+- [`networkx`](https://github.com/networkx/networkx)
+- [`pysheds`](https://github.com/mdbartos/pysheds)
+- [`rtree`](https://github.com/Toblerity/rtree)
 
 Similar libraries/projects:
-- [```s2g```](https://github.com/caesar0301/s2g)
-- [```networkx``` module ```nx_shp.py```](https://github.com/networkx/networkx/blob/6e20b952a957af820990f68d9237609198088816/networkx/readwrite/nx_shp.py)
+- [`s2g`](https://github.com/caesar0301/s2g)
+- [`networkx` module `nx_shp.py`](https://github.com/networkx/networkx/blob/6e20b952a957af820990f68d9237609198088816/networkx/readwrite/nx_shp.py)
 
 
 ## Installation
 
 To install from PyPI:
-```
+```bash
 pip install stormcatchments
 ```
 
 ## Input data requirements
 
-To utilize this package, you need both **point** and **line** spatial data, which could represent a network of catchbasins and stormlines. The file format does not matter as long as it can be successfully read into a ```geopandas.GeoDataFrame```. The line data must connect to the points, and lines must have verticies snapped to the points.
+To utilize this package, you need both **point** and **line** spatial data, which could represent a network of catchbasins and stormlines. The file format does not matter as long as it can be successfully read into a `geopandas.GeoDataFrame`. The line data must connect to the points, and lines must have verticies snapped to the points.
 
 This was initially developed for [Vermont Agency of Natural Resources stormwater infrastructure dataset](https://gis-vtanr.hub.arcgis.com/maps/VTANR::stormwater-infrastructure/explore?location=43.609172%2C-72.968811%2C14.15). However, the package is intended to generalize to any infrastructure dataset that meets these basic requirements.
 
 
 ## Example Usage
 
-### Imports
-```python
-import geopandas as gpd
-import stormcatchments as sc
-```
-### Read infrastructure data
-```python
-storm_lines = gpd.read_file('tests/test_data/johnson_vt/storm_lines.shp')
-storm_lines.set_index('OBJECTID', inplace=True)
-storm_pts = gpd.read_file('tests/test_data/johnson_vt/storm_pts.shp')
-storm_pts.set_index('OBJECTID', inplace=True)
-```
-### Initialize Network object and resolve directions
-```python
-# storm_pts contains a column "Type" with integer values describing what type of 
-# structure each point represents
-sinks = [2, 8] # Corresponds to catchbasins and culvert inlets
-sources = [5, 9] # Corresponds to outfalls and culvert outlets
-
-net = sc.Network(
-  storm_lines, storm_pts, type_column='Type', sink_types=sinks, source_types=sources
-)
-```
-Refer to [Mapping flow sinks and sources](#mapping-flow-sinks-and-sources) below for more information on initializing a ```Network```
-### Resolve flow directions of the Network
-```python
-net.resolve_directions(method='from_sources', verbose=True)
-```
-Output:
-```
-Adding edges...
-Succesfully resolved direction for 202 edges
-```
-Refer to [Determining subsurface flow direction](#determining-subsurface-flow-direction) below for more information of resolving ```Network``` directions
-### Preprocess terrain data
-```python
-grid, fdir, acc = sc.terrain.preprocess_dem('tests/test_data/johnson_vt/dem.tif')
-```
-Note that ```sc.terrain.preprocess_dem()``` uses default settings for ```pysheds```. It's worth experimenting with this step to try and improve results with your DEM.
-### Initialize Delineate object and get a stormcatchment
-```python
-grid_epsg = 6589
-delin = sc.Delineate(net, grid, fdir, acc, grid_epsg)
-
-# (x, y) coordinates in same CRS as grid
-pour_pt = (484636, 237170)
-# get stormcatchment using the default accumulation threshold
-stormcatchment = delin.get_stormcatchment(pour_pt, acc_thresh=1000)
-```
-### Also get the original catchment (network unaware) to compare results
-```python
-catchment = sc.delineate.get_catchment(
-  pour_pt, grid, fdir, acc, grid_epsg, acc_thresh=1000
-)
-```
-### Plot original catchment in blue and stormcatchment in orange
-This uses the built-in ```net.draw()``` method, which adds a ```contextily``` basemap when ```add_basemap=True```. Note that the orange stormcatchment incorporates a large hillside 
-that pipes to the pour point.
-```python
-import matplotlib.pyplot as plt
-
-fig, ax = plt.subplots(figsize=(12, 12))
-stormcatchment.plot(ax=ax, ec='orange', fc='orange', alpha=0.5, linewidth=3)
-catchment.plot(ax=ax, ec='blue', fc='blue', alpha=0.5, linewidth=3)
-net.draw(ax=ax, add_basemap=True)
-```
-![Plot of catchment and stormcatchment](img/example_stormcatchment.png)
+See [examples/johnson.ipynb](examples/johnson.ipynb)
 
 
 ## Mapping flow sinks and sources
