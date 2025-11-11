@@ -92,6 +92,9 @@ class Network:
             List of type values that correspond to flow sources, where flow exits at
             these points, such as an outfall
         """
+
+        # TODO: Identify private and public class attributes
+
         if storm_pts.crs != storm_lines.crs:
             raise ValueError(
                 "Coordinate reference systems of point and line datasets must match"
@@ -99,10 +102,13 @@ class Network:
         self.crs = storm_pts.crs
 
         self.lines = storm_lines
+
         # Explode all lines into 2-vertex segments while rounding coordinates
+        # TODO: Rename variable, maybe self._graph
         self.G = nx.DiGraph()
         self.directions_resolved = False
         all_segments = {}
+        # TODO: Remove StormLine named tuple or convert to a class
         for line in storm_lines.itertuples(name="StormLine"):
             u_coords = line.geometry.coords[:-1]
             v_coords = line.geometry.coords[1:]
@@ -173,6 +179,8 @@ class Network:
             lambda geom: Point([get_point_coords(geom, coord_decimals)])
         )
 
+    # TODO: Get rid of this namedtuple concept. Convert to StormPoint class if needed.
+    # This just needs to be in it's init method somewhere
     def to_StormPoint(self, pt) -> "StormPoint": # noqa
         """
         Converts point data from various types to a StormPoint namedtuple
@@ -214,7 +222,7 @@ class Network:
         Parameters
         ----------
         pt : gpd.GeoDataFrame | pd.Series | StormPoint (namedtuple)
-            Point whose cooridnate pair will searched for in self.G
+            Point whose coordinate pair will searched for in self.G
 
         Returns
         -------
