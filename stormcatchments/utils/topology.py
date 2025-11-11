@@ -1,6 +1,7 @@
-# Similarly to terrain.py, these are really just utility functions to help users set
-# their data up. It's not really core stormcatchments. It could probably all be wrapped
-# up in a utils module or something
+"""topology utils
+
+Various utility functions for validating/cleaning the topology of vector networks
+"""
 
 from copy import deepcopy
 

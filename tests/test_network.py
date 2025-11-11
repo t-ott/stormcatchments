@@ -74,8 +74,7 @@ def test_points_in_graph_johnson(net_johnson):
 
 
 def test_resolve_direction_simple_johnson(net_johnson):
-    """
-    Ensure the direction of a simple 3-node subgraph can be resolved such that the only
+    """Ensure the direction of a simple 3-node subgraph can be resolved such that the only
     edges present are in the correct direction of flow for that subgraph
     """
     net = net_johnson
@@ -92,8 +91,7 @@ def test_resolve_direction_simple_johnson(net_johnson):
 
 
 def test_resolve_direction_complex_johnson(net_johnson):
-    """
-    Ensure the direction of a larger subgraph with multiple branches can be resolved such
+    """Ensure the direction of a larger subgraph with multiple branches can be resolved such
     that the only edges present are in the correct direction of flow for that subgraph
     """
     net = net_johnson
@@ -110,8 +108,7 @@ def test_resolve_direction_complex_johnson(net_johnson):
 
 
 def test_get_outlet_johnson(net_johnson):
-    """
-    After resolving direction for a SINK point, test that it's outlet is properly
+    """After resolving direction for a SINK point, test that it's outlet is properly
     identified
     """
     net = net_johnson
@@ -120,8 +117,7 @@ def test_get_outlet_johnson(net_johnson):
 
 
 def test_resolve_catchment_johnson(net_johnson):
-    """
-    Test that resolve_catchment_graph removes all bidirectional edges within the
+    """Test that resolve_catchment_graph removes all bidirectional edges within the
     catchment, meaning the flow directions for the catchment subgraph have been fully
     resolved / have no ambiguity
     """

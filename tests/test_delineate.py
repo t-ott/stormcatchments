@@ -2,7 +2,8 @@ import geopandas as gpd
 from shapely.geometry import Point
 import pytest
 
-from stormcatchments import network, delineate, terrain
+from stormcatchments import delineate, network
+from stormcatchments.utils import terrain
 
 SINK_TYPES_VT = [
     2,  # Catchbasin

@@ -1,8 +1,11 @@
+"""terrain utils
+
+Various utility functions for working with terrain rasters using pysheds
+"""
+
 from pysheds.grid import Grid
 
-# TODO: The purpose of this module should be clarified. It's not core functionality for
-# stormcatchments, but rather just some utility functions that make setting up the
-# terrain data easier.
+
 def preprocess_dem(dem_path: str) -> tuple:
     """
     Pre-process digital elevation model (DEM), in line standard preprocessing steps
