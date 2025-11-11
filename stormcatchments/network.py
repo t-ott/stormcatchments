@@ -181,7 +181,7 @@ class Network:
 
     # TODO: Get rid of this namedtuple concept. Convert to StormPoint class if needed.
     # This just needs to be in it's init method somewhere
-    def to_StormPoint(self, pt) -> "StormPoint": # noqa
+    def to_StormPoint(self, pt) -> "StormPoint":  # noqa
         """
         Converts point data from various types to a StormPoint namedtuple
 
@@ -599,7 +599,10 @@ class Network:
         if add_basemap:
             try:
                 cx.add_basemap(
-                    ax, source=cx.providers.Esri.WorldImagery, crs=self.crs.to_string(), alpha=0.7
+                    ax,
+                    source=cx.providers.Esri.WorldImagery,
+                    crs=self.crs.to_string(),
+                    alpha=0.7,
                 )
             except Exception as e:
                 warnings.warn(

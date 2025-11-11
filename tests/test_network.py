@@ -14,6 +14,7 @@ SOURCE_TYPES_VT = [
     9,  # Culvert outlet
 ]
 
+
 @pytest.fixture
 def net_johnson():
     storm_lines = gpd.read_file("tests/test_data/johnson_vt/storm_lines.shp")

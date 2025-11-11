@@ -15,6 +15,7 @@ SOURCE_TYPES_VT = [
     9,  # Culvert outlet
 ]
 
+
 @pytest.fixture
 def delineate_johnson():
     # construct Network
