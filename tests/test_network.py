@@ -50,7 +50,7 @@ def test_non_empty_graph_johnson(net_johnson):
     net = net_johnson
     net.resolve_directions()
     assert not net.segments.empty
-    assert net.G.number_of_nodes() > 0
+    assert net.digraph.number_of_nodes() > 0
 
 
 def test_line_segmentation_johnson(net_johnson):
@@ -71,7 +71,7 @@ def test_points_in_graph_johnson(net_johnson):
     net.resolve_directions()
     for idx in [20845, 244244, 21135, 244947, 244275]:
         x, y = network.get_point_coords(net.pts.loc[idx].geometry)
-        assert net.G.has_node((x, y))
+        assert net.digraph.has_node((x, y))
 
 
 def test_resolve_direction_simple_johnson(net_johnson):
@@ -86,9 +86,9 @@ def test_resolve_direction_simple_johnson(net_johnson):
         u_x, u_y = network.get_point_coords(net.pts.loc[u].geometry)
         v_x, v_y = network.get_point_coords(net.pts.loc[v].geometry)
         # Edge is present in correct direction of flow
-        assert net.G.has_edge((u_x, u_y), (v_x, v_y))
+        assert net.digraph.has_edge((u_x, u_y), (v_x, v_y))
         # Edge is not present in reverse of flow direction
-        assert not net.G.has_edge((v_x, v_y), (u_x, u_y))
+        assert not net.digraph.has_edge((v_x, v_y), (u_x, u_y))
 
 
 def test_resolve_direction_complex_johnson(net_johnson):
@@ -103,9 +103,9 @@ def test_resolve_direction_complex_johnson(net_johnson):
         u_x, u_y = network.get_point_coords(net.pts.loc[u].geometry)
         v_x, v_y = network.get_point_coords(net.pts.loc[v].geometry)
         # Edge is present in correct direction of flow
-        assert net.G.has_edge((u_x, u_y), (v_x, v_y))
+        assert net.digraph.has_edge((u_x, u_y), (v_x, v_y))
         # Edge is not present in reverse of flow direction
-        assert not net.G.has_edge((v_x, v_y), (u_x, u_y))
+        assert not net.digraph.has_edge((v_x, v_y), (u_x, u_y))
 
 
 def test_get_outlet_johnson(net_johnson):
@@ -132,8 +132,8 @@ def test_resolve_catchment_johnson(net_johnson):
     catchment_pts = gpd.clip(net.pts, catchment)
     for pt in catchment_pts.itertuples("StormPoint"):
         x, y = network.get_point_coords(pt.geometry)
-        predecessors = [u for u in net.G.predecessors((x, y))]
-        successors = [v for v in net.G.successors((x, y))]
+        predecessors = [u for u in net.digraph.predecessors((x, y))]
+        successors = [v for v in net.digraph.successors((x, y))]
         # There should be no nodes that are both predecessors and successors
         assert len(set(predecessors).intersection(successors)) == 0
 
@@ -145,7 +145,7 @@ def test_consec_out_synth(net_synthetic):
     first_out_pt_coords = tuple(
         [net.pts.loc[14].geometry.x, net.pts.loc[14].geometry.y]
     )
-    successors = [v for v in net.G.successors(first_out_pt_coords)]
+    successors = [v for v in net.digraph.successors(first_out_pt_coords)]
     assert len(successors) == 1
 
 
