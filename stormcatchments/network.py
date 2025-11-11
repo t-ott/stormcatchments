@@ -366,7 +366,7 @@ class Network:
         method : str (default 'from_sources')
             Method to resolve edge directions for self.G, can be one of the following:
             - 'from_sources': Traverses upstream from each outlet point (where
-                self.pts['IS_SOURCE'] is True) to define edge directions to point to
+                self.pts['IS_SOURCE'] == True) to define edge directions to point to
                 outlets
             - 'vertex_order': Defines edge directions using the order of verticies in
                 self.lines
@@ -453,7 +453,7 @@ class Network:
             catchment = catchment.to_crs(crs=self.pts.crs)
 
         catchment_pts = gpd.clip(self.pts, catchment)
-        sink_pts = catchment_pts[catchment_pts["IS_SINK"] is True]
+        sink_pts = catchment_pts[catchment_pts["IS_SINK"] == True]
 
         indicies_to_remove = []
         sink_pt_inidicies = sink_pts.index.to_list()
@@ -489,7 +489,7 @@ class Network:
             catchment = catchment.to_crs(crs=self.pts.crs)
 
         catchment_pts = gpd.clip(self.pts, catchment)
-        source_pts = catchment_pts[catchment_pts["IS_SOURCE"] is True]
+        source_pts = catchment_pts[catchment_pts["IS_SOURCE"] == True]
         source_pt_geoms = source_pts.geometry.tolist()
         source_pt_coords = [get_point_coords(geom) for geom in source_pt_geoms]
 
@@ -578,15 +578,14 @@ class Network:
         lc = LineCollection([edge for edge in bidirectional_edges], color="darkblue")
         ax.add_collection(lc)
 
+        pts = self.pts.copy(deep=True)
         if extent is not None:
-            pts = gpd.clip(self.pts, extent["geometry"].envelope)
-        else:
-            pts = self.pts
+            pts = gpd.clip(pts, extent["geometry"].envelope)
 
         # Plot points
-        sink_pts = pts[pts["IS_SINK"] is True]
-        source_pts = pts[pts["IS_SOURCE"] is True]
-        other_pts = pts[(pts["IS_SINK"] is False) & (pts["IS_SOURCE"] is False)]
+        sink_pts = pts[pts["IS_SINK"] == True]
+        source_pts = pts[pts["IS_SOURCE"] == True]
+        other_pts = pts[(pts["IS_SINK"] == False) & (pts["IS_SOURCE"] == False)]
         sink_pts.plot(
             ax=ax, color="white", marker="s", edgecolor="black", markersize=10, zorder=2
         )
@@ -600,7 +599,7 @@ class Network:
         if add_basemap:
             try:
                 cx.add_basemap(
-                    ax, source=cx.providers.Esri.WorldImagery, crs=self.crs.to_string()
+                    ax, source=cx.providers.Esri.WorldImagery, crs=self.crs.to_string(), alpha=0.7
                 )
             except Exception as e:
                 warnings.warn(

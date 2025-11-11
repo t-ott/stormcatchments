@@ -13,6 +13,7 @@ matplotlib
 rasterio
 
 # Development
+ipykernel
 pytest
 ruff
 twine
