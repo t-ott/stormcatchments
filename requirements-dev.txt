@@ -1,0 +1,7 @@
+-r requirements.txt
+pytest
+ruff
+build
+twine
+steuptools>=45
+wheel
