@@ -14,6 +14,7 @@ rasterio
 
 # Development
 ipykernel
+pre-commit
 pytest
 ruff
 twine

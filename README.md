@@ -62,3 +62,27 @@ Several functions are available in ```stormcatchments.topology``` to assist in v
 - ```find_floating_points```: Returns points that aren't snapped to a line vertex. Floating points cannot be incorporated into the Network.
 - ```snap_points```: Returns an altered copy of a ```stormcatchments.Network``` in which any floating points are snapped to the nearest vertex, within a specified snapping tolerance.
 - ```find_multi_outlet```: Returns a ```GeoDataFrame``` containing geometry for subgraphs within a ```Network``` that have multiple flow sources (outlets). Delineation results may not be optimal in mutli-outlet subgraphs depending on how the directions are resolved within them. Having a single outlet ensures predictable delineation results.
+
+## Contributing
+
+Setup a local development environment with `conda`:
+```bash
+conda create -n stormcatchments python==3.12
+conda install -c conda-forge --file requirements-dev.txt
+conda activate stormcatchments
+```
+
+Install the package itself in dev mode: 
+```bash
+pip install -e .
+```
+
+Install pre-commit hooks:
+```bash
+pre-commit install
+```
+
+Run tests to confirm installation:
+```bash
+pytest ./
+```
