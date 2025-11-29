@@ -65,49 +65,41 @@ class Network:
 
     def __init__(
         self,
-        storm_lines: gpd.GeoDataFrame,
-        storm_pts: gpd.GeoDataFrame,
+        lines: gpd.GeoDataFrame,
+        sink_pts: gpd.GeoDataFrame,
+        source_pts: gpd.GeoDataFrame,
         coord_decimals: int = 3,
-        type_column: Optional[str] = None,
-        sink_types: Optional[list] = None,
-        source_types: Optional[list] = None,
     ):
         """
         Parameters:
         ----------
-        storm_lines : gpd.GeoDataFrame
+        lines : gpd.GeoDataFrame
             All the stormwater infrastructure line features within the area of interest
-        storm_pts : gpd.GeoDataFrame
-            All the stormwater infrastructure points features within the area of interest
+        sink_pts : gpd.GeoDataFrame
+            All the points that represent flow sinks in the infrastructure network,
+            where flow enters the network, such as catchbasins
+        source_pts : gpd.GeoDataFrame
+            All the points that represent flow sources in the infrastructure network,
+            where flow exits the network, such as outfalls
         coord_decimals : int (default 3)
             Decimal to round line coordinates too, prevents problems with improper snapping
-        type_column : str | None (default None)
-            Column in storm_pts GeoDataFrame that represents the type of each point
-            (e.g., catchbasins, outfalls, culverts), set to None if IS_SOURCE and
-            IS_SINK are preconfigured in the storm_pts GeoDataFrame
-        sink_types : list (default None)
-            List of type values that correspond to flow sinks, where flow enters at
-            these points, such as a catchbasin
-        source_types : list (default None)
-            List of type values that correspond to flow sources, where flow exits at
-            these points, such as an outfall
         """
 
         # TODO: Identify private and public class attributes
 
-        if storm_pts.crs != storm_lines.crs:
+        if sink_pts.crs != lines.crs or source_pts.crs != lines.crs:
             raise ValueError(
-                "Coordinate reference systems of point and line datasets must match"
+                "Coordinate reference systems of all point and line datasets must match"
             )
-        self.crs = storm_pts.crs
+        self.crs = sink_pts.crs
 
-        self.lines = storm_lines
+        self.lines = lines
 
         # Explode all lines into 2-vertex segments while rounding coordinates
         self.digraph = nx.DiGraph()
         self.directions_resolved = False
         all_segments = {}
-        for line in storm_lines.itertuples():
+        for line in lines.itertuples():
             u_coords = line.geometry.coords[:-1]
             v_coords = line.geometry.coords[1:]
             # Round all coordinate values
@@ -130,50 +122,14 @@ class Network:
             segments["src_index"] = src_index
             self.segments = gpd.pd.concat([self.segments, segments], ignore_index=True)
 
-        self.pts = storm_pts
-        # Deal with mapping of IS_SOURCE and IS_SINK in point data
-        if type_column is None:
-            # User supplied SINK and SOURCE data
-            if "IS_SINK" not in self.pts.columns:
-                raise ValueError(
-                    'Column "IS_SINK" not present in point data. Supply a bool column '
-                    'named "IS_SINK" or supply a type_column and list of sink_types to '
-                    'map onto "IS_SINK"'
-                )
-            elif self.pts.dtypes["IS_SINK"] != "bool":
-                raise ValueError('Column "IS_SINK" must be bool type')
-            elif "IS_SOURCE" not in self.pts.columns:
-                raise ValueError(
-                    'Column "IS_SOURCE" not present in point data. Supply a bool '
-                    'column named "IS_SOURCE" or supply a type_column and list of '
-                    'source_types to map onto "IS_SOURCE"'
-                )
-            elif self.pts.dtypes["IS_SOURCE"] != "bool":
-                raise ValueError('Column "IS_SOURCE" must be bool type')
-        else:
-            # Need to map SINK and SOURCE data
-            if type_column not in self.pts.columns:
-                raise ValueError(
-                    f'type_column "{type_column}" not present in point data'
-                )
-            elif sink_types is None:
-                raise ValueError(
-                    "To map data to IS_SINK a sink_types argument is required"
-                )
-            elif source_types is None:
-                raise ValueError(
-                    "To map data to IS_SOURCE a source_type argument is required"
-                )
-
-            self.pts["IS_SINK"] = self.pts[type_column].apply(
-                lambda x: True if x in sink_types else False
-            )
-            self.pts["IS_SOURCE"] = self.pts[type_column].apply(
-                lambda x: True if x in source_types else False
-            )
+        self.sink_pts = sink_pts
+        self.source_pts = source_pts
 
         # Round all point coordinate values, also converting any MultiPoints to Points
-        self.pts["geometry"] = self.pts["geometry"].apply(
+        self.sink_pts["geometry"] = self.sink_pts["geometry"].apply(
+            lambda geom: Point([get_point_coords(geom, coord_decimals)])
+        )
+        self.source_pts["geometry"] = self.source_pts["geometry"].apply(
             lambda geom: Point([get_point_coords(geom, coord_decimals)])
         )
 
@@ -202,7 +158,7 @@ class Network:
             pt = next(pt_iter)
         elif isinstance(pt, pd.Series):
             # convert to StormPoint namedtuple
-            field_names = self.pts.columns.to_list()
+            field_names = self.sink_pts.columns.to_list()
             field_names.insert(0, "Index")
             pt = namedtuple("StormPoint", field_names)(pt.name, *pt)
         else:
@@ -243,11 +199,7 @@ class Network:
             Infrastructure point which is a flow source/discharge point (IS_SOURCE=True)
         """
         source_pt = self.to_StormPoint(source_pt)
-        if not source_pt.IS_SOURCE:
-            raise ValueError(
-                f"Cannot resolve direction from point with Index {source_pt.Index} as "
-                f'it is not marked as a flow source, see "IS_SOURCE": {source_pt}'
-            )
+
         v_x = source_pt.geometry.x
         v_y = source_pt.geometry.y
 
@@ -325,10 +277,9 @@ class Network:
         """
         self.add_edges(direction="both", verbose=verbose)
 
-        source_pts = self.pts[self.pts["IS_SOURCE"]]
         missing_pts = []
 
-        for pt in source_pts.itertuples(name="StormPoint"):
+        for pt in self.source_pts.itertuples(name="StormPoint"):
             if not self.has_StormPoint(pt):
                 missing_pts.append(pt.Index)
                 continue
@@ -387,44 +338,46 @@ class Network:
 
         self.directions_resolved = True
 
-    def get_outlet(self, pt_idx: int) -> Optional[int]:
+    def get_outlet(self, sink_pt_idx: int) -> Optional[int]:
         """
         Get Index of the outlet for a given storm_pt whose coordinates exist in the
         graph
 
         Parameters
         ----------
-        pt_idx : int
+        sink_pt_idx : int
             Index of point, note that OBJECTID is the default index column
         """
         if not self.directions_resolved:
             raise ValueError("Cannot get outlet until graph directions are resolved")
 
-        pt_x, pt_y = get_point_coords(self.pts.loc[pt_idx].geometry)
+        pt_x, pt_y = get_point_coords(self.sink_pts.loc[sink_pt_idx].geometry)
         if (pt_x, pt_y) not in self.digraph:
             warnings.warn(
-                f"The point with index {pt_idx} does not have its coordinates as a "
-                "node in the graph"
+                f"The point with index {sink_pt_idx} does not have its coordinates as "
+                "a node in the graph"
             )
             return None
 
-        subG = nx.dfs_tree(self.digraph, (pt_x, pt_y))
-        outlet_coords = [coords for coords, deg in subG.out_degree() if deg == 0]
+        sub_graph = nx.dfs_tree(self.digraph, (pt_x, pt_y))
+        outlet_coords = [coords for coords, deg in sub_graph.out_degree() if deg == 0]
         if len(outlet_coords) == 0:
-            raise ValueError(f"Subgraph of point with index {pt_idx} has no outlet")
+            raise ValueError(
+                f"Subgraph of point with index {sink_pt_idx} has no outlet"
+            )
         elif len(outlet_coords) > 1:
             warnings.warn(
-                f"Multiple outlet coordinates found for point with index {pt_idx}, "
+                f"Multiple outlet coordinates found for point with index {sink_pt_idx}, "
                 "only returning the first"
             )
 
         outlet_x, outlet_y = outlet_coords[0]
-        outlet_pts = self.pts.cx[outlet_x, outlet_y]  # gpd.GeoDataFrame
+        outlet_pts = self.source_pts.cx[outlet_x, outlet_y]  # gpd.GeoDataFrame
         if len(outlet_pts) == 0:
             return None
         elif len(outlet_pts) > 1:
             warnings.warn(
-                f"Multiple outlet coordinates found for point with index {pt_idx}, "
+                f"Multiple outlet coordinates found for point with index {sink_pt_idx}, "
                 "only returning the first"
             )
 
@@ -447,20 +400,20 @@ class Network:
             GeoDataFrame containing all the points that bring flow out of the current
             catchment
         """
-        if catchment.crs != self.pts.crs:
-            catchment = catchment.to_crs(crs=self.pts.crs)
+        if catchment.crs != self.crs:
+            catchment = catchment.to_crs(crs=self.crs)
 
-        catchment_pts = gpd.clip(self.pts, catchment)
-        sink_pts = catchment_pts[catchment_pts["IS_SINK"] == True]  # noqa
+        catchment_sink_pts = gpd.clip(self.sink_pts, catchment)
+        catchment_source_pts = gpd.clip(self.source_pts, catchment)
 
-        indicies_to_remove = []
-        sink_pt_inidicies = sink_pts.index.to_list()
-        for idx in sink_pt_inidicies:
+        sink_idxs_to_remove = []
+        sink_pt_idxs = catchment_sink_pts.index.to_list()
+        for idx in sink_pt_idxs:
             outlet_idx = self.get_outlet(idx)
-            if outlet_idx is not None and outlet_idx not in catchment_pts.index:
-                indicies_to_remove.append(outlet_idx)
+            if outlet_idx is not None and outlet_idx not in catchment_source_pts.index:
+                sink_idxs_to_remove.append(outlet_idx)
 
-        return self.pts.loc[indicies_to_remove]
+        return self.sink_pts.loc[sink_idxs_to_remove]
 
     def get_inlet_points(self, catchment: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         """
@@ -483,15 +436,14 @@ class Network:
                 "Cannot get inlet points until graph directions are resolved"
             )
 
-        if catchment.crs != self.pts.crs:
-            catchment = catchment.to_crs(crs=self.pts.crs)
+        if catchment.crs != self.crs:
+            catchment = catchment.to_crs(crs=self.crs)
 
-        catchment_pts = gpd.clip(self.pts, catchment)
-        source_pts = catchment_pts[catchment_pts["IS_SOURCE"] == True]  # noqa
-        source_pt_geoms = source_pts.geometry.tolist()
+        catchment_source_pts = gpd.clip(self.source_pts, catchment)
+        source_pt_geoms = catchment_source_pts.geometry.tolist()
         source_pt_coords = [get_point_coords(geom) for geom in source_pt_geoms]
 
-        contrib_sink_inidices = set()
+        contrib_sink_idxs = set()
         for coords in source_pt_coords:
             tree = nx.bfs_tree(self.digraph, coords, reverse=True)
 
@@ -499,13 +451,13 @@ class Network:
                 if catchment.contains(Point(node)).any():
                     continue
 
-                # Look for StormPoints at these coordinates
-                pt = self.pts.cx[node[0], node[1]]
-                if not pt.empty:
-                    pt = self.to_StormPoint(pt)
-                    contrib_sink_inidices.add(pt.Index)
+                # Check for any sinks at these coordinates
+                sink_pt = self.sink_pts.cx[node[0], node[1]]
+                if not sink_pt.empty:
+                    sink_pt = self.to_StormPoint(sink_pt)
+                    contrib_sink_idxs.add(sink_pt.Index)
 
-        return self.pts.loc[list(contrib_sink_inidices)]
+        return self.sink_pts.loc[list(contrib_sink_idxs)]
 
     def draw(
         self, extent: gpd.GeoDataFrame = None, ax=None, add_basemap: bool = False

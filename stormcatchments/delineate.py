@@ -86,7 +86,7 @@ class Delineate:
           A pysheds flow direction raster
 
         acc : pysheds.sview.Raster
-          A pysehds flow accumulation raster
+          A pysheds flow accumulation raster
 
         grid_epsg : int
           EPSG code for the CRS of the DEM
@@ -94,8 +94,8 @@ class Delineate:
 
         if not network.directions_resolved:
             raise ValueError(
-                "Cannot generate stormcatchment until graph directions of the Network are "
-                "resolved"
+                "Cannot generate stormcatchment until graph directions of the Network "
+                "are resolved"
             )
 
         self.net = network

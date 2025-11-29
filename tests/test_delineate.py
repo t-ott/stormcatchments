@@ -1,41 +1,4 @@
-import geopandas as gpd
 from shapely.geometry import Point
-import pytest
-
-from stormcatchments import delineate, network
-from stormcatchments.utils import terrain
-
-SINK_TYPES_VT = [
-    2,  # Catchbasin
-    8,  # Culvert inlet
-]
-
-SOURCE_TYPES_VT = [
-    5,  # Outfall
-    9,  # Culvert outlet
-]
-
-
-@pytest.fixture
-def delineate_johnson():
-    # construct Network
-    storm_lines = gpd.read_file("tests/test_data/johnson_vt/storm_lines.shp")
-    storm_lines.set_index("OBJECTID", inplace=True)
-    storm_pts = gpd.read_file("tests/test_data/johnson_vt/storm_pts.shp")
-    storm_pts.set_index("OBJECTID", inplace=True)
-    net = network.Network(
-        storm_lines,
-        storm_pts,
-        type_column="Type",
-        sink_types=SINK_TYPES_VT,
-        source_types=SOURCE_TYPES_VT,
-    )
-    net.resolve_directions()
-
-    # pysheds DEM loading, conditioning, and preprocessing
-    grid, fdir, acc = terrain.preprocess_dem("tests/test_data/johnson_vt/dem.tif")
-
-    return delineate.Delineate(net, grid, fdir, acc, 6589)
 
 
 def test_get_catchment(delineate_johnson):
