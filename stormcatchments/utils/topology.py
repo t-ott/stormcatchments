@@ -64,27 +64,6 @@ def get_all_floating_points(net: Network) -> tuple[gpd.GeoDataFrame, gpd.GeoData
     floating_source_pts : gpd.GeoDataFrame
       A GeoDataFrame of any floating source points in the Network
     """
-    # floating_sink_pts = []
-    # floating_source_pts = []
-    # # all_net_pts = pd.concat([net.sink_pts, net.source_pts])
-    # for pt in net.sink_pts.itertuples():
-    #     # Get all segments that pt touches, could be on a vertex or between verticies
-    #     touch_segs = net.segments[net.segments.geometry.touches(pt.geometry)]
-
-    #     if len(touch_segs) == 0:
-    #         floating_sink_pts.append(pt)
-    #         continue
-
-    #     # Collect segment coordinates as (x, y) tuples
-    #     seg_coords = set()
-    #     for line in touch_segs.geometry:
-    #         for coord in line.coords:
-    #             seg_coords.add(coord)
-
-    #     if (pt.geometry.x, pt.geometry.y) not in seg_coords:
-    #         floating_sink_pts.append(pt)
-
-    # return gpd.GeoDataFrame(floating_pts, crs=net.crs).set_index("Index")
     return (
         _get_floating_points(net, "sink"),
         _get_floating_points(net, "source"),
@@ -150,25 +129,6 @@ def snap_all_points(net: Network, tolerance: float) -> Network:
     net_all_pts_snapped = _snap_points(
         net_sink_pts_snapped, "source", floating_source_pts, tolerance
     )
-
-    # net_snapped = deepcopy(net)
-    # for pt in floating_sink_pts.itertuples():
-    #     nearby = net.segments.cx[
-    #         pt.geometry.x - tolerance : pt.geometry.x + tolerance,
-    #         pt.geometry.y - tolerance : pt.geometry.y + tolerance,
-    #     ]
-
-    #     closest_xy = None
-    #     closest_dist = tolerance**2
-    #     for line in nearby.geometry:
-    #         for coord in line.coords:
-    #             dist = pt.geometry.distance(Point(coord))
-    #             if dist < closest_dist:
-    #                 closest_dist = dist
-    #                 closest_xy = coord
-
-    #     if closest_dist <= tolerance:
-    #         net_snapped.pts.at[pt.Index, "geometry"] = Point(closest_xy)
 
     return net_all_pts_snapped
 
