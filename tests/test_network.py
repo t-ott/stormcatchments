@@ -1,48 +1,7 @@
 import geopandas as gpd
-import pytest
+import pandas as pd
 
 from stormcatchments import network
-
-
-SINK_TYPES_VT = [
-    2,  # Catchbasin
-    8,  # Culvert inlet
-]
-
-SOURCE_TYPES_VT = [
-    5,  # Outfall
-    9,  # Culvert outlet
-]
-
-
-@pytest.fixture
-def net_johnson():
-    storm_lines = gpd.read_file("tests/test_data/johnson_vt/storm_lines.shp")
-    storm_lines.set_index("OBJECTID", inplace=True)
-    storm_pts = gpd.read_file("tests/test_data/johnson_vt/storm_pts.shp")
-    storm_pts.set_index("OBJECTID", inplace=True)
-    net = network.Network(
-        storm_lines,
-        storm_pts,
-        type_column="Type",
-        sink_types=SINK_TYPES_VT,
-        source_types=SOURCE_TYPES_VT,
-    )
-    return net
-
-
-@pytest.fixture
-def net_synthetic():
-    storm_lines = gpd.read_file("tests/test_data/synthetic/lines.shp")
-    storm_pts = gpd.read_file("tests/test_data/synthetic/pts.shp")
-    storm_pts.set_index("id", inplace=True)
-
-    # Cast 0 | 1 integers to bool
-    storm_pts["IS_SINK"] = storm_pts["IS_SINK"].astype(bool)
-    storm_pts["IS_SOURCE"] = storm_pts["IS_SOURCE"].astype(bool)
-
-    net = network.Network(storm_lines, storm_pts)
-    return net
 
 
 def test_non_empty_graph_johnson(net_johnson):
@@ -69,8 +28,15 @@ def test_points_in_graph_johnson(net_johnson):
     """Ensure coordinates of various storm_points are present as nodes within the graph"""
     net = net_johnson
     net.resolve_directions()
-    for idx in [20845, 244244, 21135, 244947, 244275]:
-        x, y = network.get_point_coords(net.pts.loc[idx].geometry)
+
+    # Known sinks
+    for idx in [20845, 21135, 244275]:
+        x, y = network.get_point_coords(net.sink_pts.loc[idx].geometry)
+        assert net.digraph.has_node((x, y))
+
+    # Known sources
+    for idx in [244244, 244947]:
+        x, y = network.get_point_coords(net.source_pts.loc[idx].geometry)
         assert net.digraph.has_node((x, y))
 
 
@@ -81,31 +47,44 @@ def test_resolve_direction_simple_johnson(net_johnson):
     net = net_johnson
     net.resolve_directions()
 
-    edges = {244374: 244244, 244900: 244374}
-    for u, v in edges.items():
-        u_x, u_y = network.get_point_coords(net.pts.loc[u].geometry)
-        v_x, v_y = network.get_point_coords(net.pts.loc[v].geometry)
-        # Edge is present in correct direction of flow
-        assert net.digraph.has_edge((u_x, u_y), (v_x, v_y))
-        # Edge is not present in reverse of flow direction
-        assert not net.digraph.has_edge((v_x, v_y), (u_x, u_y))
+    # Points known to be in the graph. Neither sinks nor sources
+    u1_x, u1_y = (484628.134, 237228.753)
+    v1_x, v1_y = (484624.033, 237226.107)
+
+    u2_x = v1_x
+    u2_y = v1_y
+    v2_x, v2_y = network.get_point_coords(net.source_pts.loc[244244].geometry)
+
+    assert net.digraph.has_edge((u1_x, u1_y), (v1_x, v1_y))
+    assert not net.digraph.has_edge((v1_x, v1_y), (u1_x, u1_y))
+
+    assert net.digraph.has_edge((u2_x, u2_y), (v2_x, v2_y))
+    assert not net.digraph.has_edge((v2_x, v2_y), (u2_x, u2_y))
 
 
 def test_resolve_direction_complex_johnson(net_johnson):
-    """Ensure the direction of a larger subgraph with multiple branches can be resolved such
-    that the only edges present are in the correct direction of flow for that subgraph
+    """Ensure the direction of a larger subgraph with multiple branches can be resolved
+    such that the only edges present are in the correct direction of flow for that
+    subgraph
     """
     net = net_johnson
     net.resolve_directions()
 
-    edges = {20845: 21134, 20846: 20845, 20847: 20846, 21135: 20845}
-    for u, v in edges.items():
-        u_x, u_y = network.get_point_coords(net.pts.loc[u].geometry)
-        v_x, v_y = network.get_point_coords(net.pts.loc[v].geometry)
+    # Interconnected sinks (catchbasins)
+    sink_edges = {20846: 20845, 20847: 20846, 21135: 20845}
+    for u, v in sink_edges.items():
+        u_x, u_y = network.get_point_coords(net.sink_pts.loc[u].geometry)
+        v_x, v_y = network.get_point_coords(net.sink_pts.loc[v].geometry)
         # Edge is present in correct direction of flow
         assert net.digraph.has_edge((u_x, u_y), (v_x, v_y))
         # Edge is not present in reverse of flow direction
         assert not net.digraph.has_edge((v_x, v_y), (u_x, u_y))
+
+    # Check source/outfall edge as well
+    u_x, u_y = network.get_point_coords(net.sink_pts.loc[20845].geometry)
+    v_x, v_y = network.get_point_coords(net.source_pts.loc[21134].geometry)
+    assert net.digraph.has_edge((u_x, u_y), (v_x, v_y))
+    assert not net.digraph.has_edge((v_x, v_y), (u_x, u_y))
 
 
 def test_get_outlet_johnson(net_johnson):
@@ -129,7 +108,9 @@ def test_resolve_catchment_johnson(net_johnson):
 
     # Check each point within the catchment to ensure it has no bidirectional edges
     catchment = catchment.to_crs(net.crs)
-    catchment_pts = gpd.clip(net.pts, catchment)
+    catchment_pts = pd.concat(
+        [gpd.clip(net.sink_pts, catchment), gpd.clip(net.source_pts, catchment)]
+    )
     for pt in catchment_pts.itertuples("StormPoint"):
         x, y = network.get_point_coords(pt.geometry)
         predecessors = [u for u in net.digraph.predecessors((x, y))]
@@ -143,7 +124,7 @@ def test_consec_out_synth(net_synthetic):
     net = net_synthetic
     net.resolve_directions()
     first_out_pt_coords = tuple(
-        [net.pts.loc[14].geometry.x, net.pts.loc[14].geometry.y]
+        [net.source_pts.loc[14].geometry.x, net.source_pts.loc[14].geometry.y]
     )
     successors = [v for v in net.digraph.successors(first_out_pt_coords)]
     assert len(successors) == 1

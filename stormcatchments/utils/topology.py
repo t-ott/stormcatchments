@@ -4,6 +4,7 @@ Various utility functions for validating/cleaning the topology of vector network
 """
 
 from copy import deepcopy
+from typing import Literal
 
 import geopandas as gpd
 import networkx as nx
@@ -12,7 +13,39 @@ from shapely.geometry import LineString, MultiLineString, Point
 from stormcatchments.network import Network
 
 
-def find_floating_points(net: Network) -> gpd.GeoDataFrame:
+def _get_floating_points(
+    net: Network, pt_type: Literal["sink", "source"]
+) -> gpd.GeoDataFrame:
+    floating_pts = []
+    if pt_type == "sink":
+        pts_to_check = net.sink_pts
+    elif pt_type == "source":
+        pts_to_check = net.source_pts
+    else:
+        raise ValueError("pt_type must be either 'sink' or 'source'")
+
+    for pt in pts_to_check.itertuples():
+        # Get all segments that pt touches
+        touch_segs = net.segments[net.segments.geometry.touches(pt.geometry)]
+
+        # Check for case where pt doesn't touch any segment at all
+        if len(touch_segs) == 0:
+            floating_pts.append(pt)
+            continue
+
+        # Check for case where pt touches segments but not at a vertex
+        seg_coords = set()
+        for line in touch_segs.geometry:
+            for coord in line.coords:
+                seg_coords.add(coord)
+
+        if (pt.geometry.x, pt.geometry.y) not in seg_coords:
+            floating_pts.append(pt)
+
+    return gpd.GeoDataFrame(floating_pts, crs=net.crs).set_index("Index")
+
+
+def get_all_floating_points(net: Network) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     """
     Find and return any points in a Network that are not snapped to a line vertex. These
     floating points cannot be integrated into networking functionality unless they are
@@ -26,31 +59,52 @@ def find_floating_points(net: Network) -> gpd.GeoDataFrame:
 
     Returns
     -------
-    floating_pts : gpd.GeoDataFrame
-      A GeoDataFrame of any floating points in net.pts
+    floating_sink_pts : gpd.GeoDataFrame
+      A GeoDataFrame of any floating sink points in the Network
+    floating_source_pts : gpd.GeoDataFrame
+      A GeoDataFrame of any floating source points in the Network
     """
-    floating_pts = []
-    for pt in net.pts.itertuples():
-        # Get all segments that pt touches, could be on a vertex or between verticies
-        touch_segs = net.segments[net.segments.geometry.touches(pt.geometry)]
+    return (
+        _get_floating_points(net, "sink"),
+        _get_floating_points(net, "source"),
+    )
 
-        if len(touch_segs) == 0:
-            floating_pts.append(pt)
-            continue
 
-        # Collect segment coordinates as (x, y) tuples
-        seg_coords = set()
-        for line in touch_segs.geometry:
+def _snap_points(
+    net: Network,
+    pt_type: Literal["sink", "source"],
+    floating_pts: gpd.GeoDataFrame,
+    tolerance: float,
+) -> Network:
+    net_snapped = deepcopy(net)
+    for pt in floating_pts.itertuples():
+        nearby = net.segments.cx[
+            pt.geometry.x - tolerance : pt.geometry.x + tolerance,
+            pt.geometry.y - tolerance : pt.geometry.y + tolerance,
+        ]
+
+        closest_xy = None
+        closest_dist = tolerance**2
+        for line in nearby.geometry:
             for coord in line.coords:
-                seg_coords.add(coord)
+                dist = pt.geometry.distance(Point(coord))
+                if dist < closest_dist:
+                    closest_dist = dist
+                    closest_xy = coord
 
-        if (pt.geometry.x, pt.geometry.y) not in seg_coords:
-            floating_pts.append(pt)
+        if closest_dist <= tolerance:
+            # Replace point in network
+            if pt_type == "sink":
+                net_snapped.sink_pts.at[pt.Index, "geometry"] = Point(closest_xy)
+            elif pt_type == "source":
+                net_snapped.source_pts.at[pt.Index, "geometry"] = Point(closest_xy)
+            else:
+                raise ValueError("pt_type must be either 'sink' or 'source'")
 
-    return gpd.GeoDataFrame(floating_pts, crs=net.crs).set_index("Index")
+    return net_snapped
 
 
-def snap_points(net: Network, tolerance: float) -> Network:
+def snap_all_points(net: Network, tolerance: float) -> Network:
     """
     Create a copy of a supplied Network which snaps any points in Network to the
     closest line vertex within a snapping tolerance
@@ -69,28 +123,14 @@ def snap_points(net: Network, tolerance: float) -> Network:
       A stormcatchments Network object with snapping applied to its point data
     """
     # Snap all floating (un-snapped) points to the nearest line vertex
-    floating_pts = find_floating_points(net)
+    floating_sink_pts, floating_source_pts = get_all_floating_points(net)
 
-    net_snapped = deepcopy(net)
-    for pt in floating_pts.itertuples():
-        nearby = net.segments.cx[
-            pt.geometry.x - tolerance : pt.geometry.x + tolerance,
-            pt.geometry.y - tolerance : pt.geometry.y + tolerance,
-        ]
+    net_sink_pts_snapped = _snap_points(net, "sink", floating_sink_pts, tolerance)
+    net_all_pts_snapped = _snap_points(
+        net_sink_pts_snapped, "source", floating_source_pts, tolerance
+    )
 
-        closest_xy = None
-        closest_dist = tolerance**2
-        for line in nearby.geometry:
-            for coord in line.coords:
-                dist = pt.geometry.distance(Point(coord))
-                if dist < closest_dist:
-                    closest_dist = dist
-                    closest_xy = coord
-
-        if closest_dist <= tolerance:
-            net_snapped.pts.at[pt.Index, "geometry"] = Point(closest_xy)
-
-    return net_snapped
+    return net_all_pts_snapped
 
 
 def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
@@ -120,12 +160,10 @@ def find_multi_outlet(net: Network) -> gpd.GeoDataFrame:
     for c in nx.weakly_connected_components(net.digraph):
         outlets = set()
         # Count flow sources (outlets) in current weakly connected component
-        for n in c:
-            pt = net.pts.cx[n[0] : n[0], n[1] : n[1]]
+        for node in c:
+            pt = net.source_pts.cx[node[0] : node[0], node[1] : node[1]]
             if not pt.empty:
-                pt = pt.iloc[0]
-                if pt.IS_SOURCE:
-                    outlets.add(n)
+                outlets.add(node)
 
         if len(outlets) > 1:
             sub_g = nx.subgraph(net.digraph, c)
