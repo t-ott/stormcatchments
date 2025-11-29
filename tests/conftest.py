@@ -16,7 +16,7 @@ SOURCE_TYPES_VT = [
 ]
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def net_johnson():
     storm_lines = gpd.read_file("tests/test_data/johnson_vt/storm_lines.shp")
     storm_lines.set_index("OBJECTID", inplace=True)
