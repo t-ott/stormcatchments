@@ -411,7 +411,7 @@ class Network:
         for idx in sink_pt_idxs:
             outlet_idx = self.get_outlet(idx)
             if outlet_idx is not None and outlet_idx not in catchment_source_pts.index:
-                sink_idxs_to_remove.append(outlet_idx)
+                sink_idxs_to_remove.append(idx)
 
         return self.sink_pts.loc[sink_idxs_to_remove]
 
